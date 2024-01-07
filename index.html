@@ -23,125 +23,42 @@
       background-size: cover;
     }
 
-    .autocomplete {
-      background: white;
-      z-index: 10;
-      position: relative;
-      top: 3px;
-      left: -2px;
-      border: solid 1px black;
-      box-shadow: 5px 8px 11px #000000a6;
+    .div-inner {
+      display: inline-block;
+      padding-left: 2em;
+    }
+
+    h1.title {
+      color: #582e2d;
+      font-size: 1000%;
+      text-shadow: 0 1px 2px red, 1px 0 2px #c40000, 0 -1px 2px #720000, -1px 0 2px #d10000;
+      margin: 0;
+      font-family: monospace;
+    }
+
+    h1.title .smaller-letter {
+      font-size: 50%;
       font-family: sans-serif;
     }
 
-    span.at {
-      color: gray;
-      display: inline-block;
-      zoom: 0.7;
-      position: relative;
-      top: -0.13em;
-      padding-right: 0.2em;
-    }
-
-    .stdHandleSuffix {
-      color: cornflowerblue;
-    }
-
-    .displayName {
-      font-weight: 200;
-      color: gray;
-    }
-
-    .result {
-      padding: 0.2em 0.3em;
-    }
-
-    .more {
-      color: gray;
-      font-style: italic;
-      padding: 0.2em;
-      padding-top: 0.1em;
-      padding-left: 1.2em;
-    }
-
-    .top-table {
-      position: fixed;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-    }
-
-    td.td-main {
-      text-align: center;
-    }
-
-    .div-outer {
-      width: 90%;
-      max-width: 749px;
-      height: 90%;
-      max-height: 585px;
-      display: inline-block;
-    }
-
-    .div-inner {
-      text-align: left;
-      display: inline-block;
-    }
-
-    .div-inner h1.title {
-      color: white;
-      font-size: 500%;
-      text-shadow: 0 0 3px #0060a8, 0 0 2px #0060a8, 0 0 2px #0060a8;
-      margin-bottom: 0;
-    }
-
-    .div-inner .subtitle {
-      margin-top: -0.7em;
-      margin-left: 0.5em;
-      color: white;
-      text-shadow: 0 0 4px #0060a8, 0 0 3px #0060a8, 0 0 2px #0060a8, 0 0 2px #0060a8;
-      padding-bottom: 0.5em
-    }
-
-    .div-inner #searchINPUT {
-      width: 100%;
-      box-shadow: 0 1px 10px 3px #3278a8;
-      border-radius: 0.3em;
-      border: solid 1.5px #4878c1;
-      padding: 0.2em 0.6em;
-    }
-  </style>
+    </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="shortcut icon" href="src/coldsky-icon.png" type="image/png">
-  <link rel="icon" href="src/coldsky-icon.png" type="image/png">
-  <link rel="apple-touch-icon" href="src/coldsky-icon.png" type="image/png">
+  <link rel="shortcut icon" href="air-line-icon.jpg" type="image/jpeg">
+  <link rel="icon" href="air-line-icon.jpg" type="image/jpeg">
+  <link rel="apple-touch-icon" href="air-line-icon.jpg" type="image/jpeg">
   <link rel="stylesheet" href="index.css">
 </head>
 
 <body>
-  <table class=top-table>
-    <tbody>
-      <tr>
-        <td valign="center" class=td-main>
-          <div class=div-outer>
-            <div class=div-inner>
-              <h1 class=title>DIDs</h1>
-              <div class="subtitle">Cold Sky / social media up there</div>
-              <input id=searchINPUT autocomplete=off placeholder="Demo search text">
-            </div>
+  <div class="div-inner">
 
-          </div>
+    <h1 class="title">DID<span class="smaller-letter">s</span></h1>
+    <div class="subtitle">Cold Sky / social media up there</div>
 
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  </div>
 
-  <script src="index.js">
-  </script>
-  <script src="executeSpecialCommand.js"></script>
+  <script src="index.js"></script>
 </body>
 
 </html>
