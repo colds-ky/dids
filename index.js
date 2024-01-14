@@ -1,6 +1,8 @@
+// @ts-check
+
 async function coldskyDIDs() {
-  const statusBar = document.querySelector('.status-content');
-  const payload = document.querySelector('.payload');
+  const statusBar = /** @type {HTMLElement} */(document.querySelector('.status-content'));
+  const payload = /** @type {HTMLElement} */(document.querySelector('.payload'));
 
   await load();
 
@@ -13,7 +15,7 @@ async function coldskyDIDs() {
     statusBar.textContent = 'Hydrating...';
 
     payload.className = 'payload payload-show';
-    const didsPanel = document.querySelector('.dids-panel');
+    const didsPanel = /** @type {HTMLElement} */(document.querySelector('.dids-panel'));
     const shardsPanel = document.querySelector('.shards-panel');
     const gitAuthPanel = document.querySelector('.git-auth-panel');
 
@@ -21,7 +23,24 @@ async function coldskyDIDs() {
     loadShards(cursors, shardsPanel);
   }
 
+  /**
+   * @param {import('./cursors.json')} cursors
+   * @param {HTMLElement} didsPanel
+   */
   async function loadDIDs(cursors, didsPanel) {
+    /** @type {import('@atproto/api').BskyAgent} */
+    const atClient =
+      // @ts-ignore
+      new ColdskyClient();
+    
+    let blocks = 0;
+    let allDids = [];
+    let errors = 0;
+
+    let cursor = cursors.listRepos.cursor;
+    while (true) {
+
+    }
   }
 
   async function loadShards(cursors, shardsPanel) {
