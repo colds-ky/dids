@@ -29,7 +29,13 @@ async function coldskyDIDs() {
 
     const miniTitle = document.createElement('h3');
     miniTitle.className = 'mini-title';
-    miniTitle.textContent = 'Shards';
+    const miniTitleMain = document.createElement('span');
+    miniTitleMain.textContent = 'Shards';
+    miniTitle.appendChild(miniTitleMain);
+    const miniTitleTotal = document.createElement('span');
+    miniTitleTotal.className = 'mini-title-total';
+    miniTitle.appendChild(miniTitleTotal);
+
     shardsPanel.appendChild(miniTitle);
 
     const matrix = document.createElement('div');
@@ -39,6 +45,7 @@ async function coldskyDIDs() {
     const matrixPromises = {};
     let successCount = 0;
     let errorCount = 0;
+    let didCount = 0;
     for (let iFirstLetter = 0; iFirstLetter < letters.length; iFirstLetter++) {
       const firstLetter = letters[iFirstLetter];
       for (let iSecondLetter = 0; iSecondLetter < letters.length; iSecondLetter++) {
@@ -65,13 +72,16 @@ async function coldskyDIDs() {
     }
 
     function updateTitle() {
-      miniTitle.textContent =
+      miniTitleMain.textContent =
         successCount ?
         (
           successCount.toLocaleString() + ' shards' +
           (errorCount ? ', ' + errorCount.toLocaleString() + ' retry' : '')
         ) :
-        errorCount ? 'Shards: ' + errorCount.toLocaleString() + ' retry' : 'Shards';
+          errorCount ? 'Shards: ' + errorCount.toLocaleString() + ' retry' : 'Shards';
+      if (didCount) {
+        miniTitleTotal.textContent = ' ' + didCount.toLocaleString() + ' DIDs';
+      }
     }
 
     async function loadShard(matrixElement, shardKey) {
@@ -88,6 +98,7 @@ async function coldskyDIDs() {
           matrixElement.className = baseClass + ' loaded';
           if (errorReported) errorCount--;
           successCount++;
+          didCount += Object.keys(shardData).length;
           updateTitle();
           return shardData;
         } catch (error) {
