@@ -19,7 +19,7 @@ async function coldskyDIDs() {
 
     /** @type {import('./cursors.json')} */
     const cursors = await fetch(relativeURL('cursors.json')).then(x => x.json());
-    let reflectCursor = 'orig ' + cursors.listRepos.cursor;
+    let reflectCursor = cursors.listRepos.cursor;
 
     statusBar.textContent = 'Hydrating...';
 
@@ -86,7 +86,7 @@ async function coldskyDIDs() {
       totalDidsTitleNumberElement.textContent = (totalKnownDids + newDids).toLocaleString();
 
       const reflectCursorText = Number.isFinite(Number(reflectCursor)) ? Number(reflectCursor).toLocaleString() : reflectCursor;
-      newDidsTitleExtraElement.textContent = hasError ? reflectCursorText + ' (with errors)' : reflectCursorText;
+      newDidsTitleExtraElement.textContent = hasError ? 'cursor: ' + reflectCursorText + ' (with errors)' : 'cursor: ' + reflectCursorText;
     }
 
     async function loadAndApplyNewAccounts() {
