@@ -10,7 +10,7 @@ async function coldskyDIDs() {
     statusBar.textContent = 'Detecting cursors...';
 
     /** @type {import('./cursors.json')} */
-    const cursors = await fetch('https://dids.colds.ky/cursors.json').then(x => x.json());
+    const cursors = await fetch(relativeURL('cursors.json')).then(x => x.json());
 
     statusBar.textContent = 'Hydrating...';
 
@@ -169,10 +169,7 @@ async function coldskyDIDs() {
         await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 600));
         matrixElement.className = baseClass + ' loading';
         try {
-          const shardURL =
-            (/http/i.test(location.pathname) ? '' : 'https://dids.colds.ky/') +
-            shardKey[0] + '/' + shardKey + '.json';
-
+          const shardURL = relativeURL(shardKey[0] + '/' + shardKey + '.json');
           const shardData = await fetch(shardURL).then(x => x.json());
           matrixElement.className = baseClass + ' loaded';
           if (errorReported) errorCount--;
@@ -197,6 +194,10 @@ async function coldskyDIDs() {
         }
       }
     }
+  }
+
+  function relativeURL(url) {
+    return /http/i.test(location.protocol || '') ? url : 'https://dids.colds.ky/' + url;
   }
 
 } coldskyDIDs();
