@@ -28,6 +28,16 @@ async function coldskyDIDs() {
    * @param {HTMLElement} didsPanel
    */
   async function loadDIDs(cursors, didsPanel) {
+    const didsMiniTitle = document.createElement('h3');
+    didsMiniTitle.className = 'dids-mini-title';
+    const didsMiniTitleMain = document.createElement('span');
+    didsMiniTitleMain.textContent = 'New accounts';
+    didsMiniTitle.appendChild(didsMiniTitleMain);
+    const didsMiniTitleErrors = document.createElement('span');
+    didsMiniTitleErrors.className = 'dids-mini-title-errors';
+    didsMiniTitle.appendChild(didsMiniTitleErrors);
+    didsPanel.appendChild(didsMiniTitle);
+
     /** @type {import('@atproto/api').BskyAgent} */
     const atClient =
       // @ts-ignore
@@ -38,7 +48,53 @@ async function coldskyDIDs() {
     let errors = 0;
 
     let cursor = cursors.listRepos.cursor;
+    let lastStart = Date.now();
+    let fetchError = false;
+
     while (true) {
+      try {
+        const resp = await atClient.com.atproto.sync.listRepos({ cursor });
+        fetchError = false;
+
+        blocks++;
+        if (resp?.data?.repos?.length) {
+          for (const r of resp.data.repos) {
+            allDids.push(r.did);
+          }
+        }
+
+        updateTitle();
+
+        if (!resp.data.cursor) break;
+      } catch (error) {
+        errors++;
+        fetchError = true;
+
+        const waitFor = Math.max(
+          45000,
+          Math.min(300, (Date.now() - lastStart) / 3)
+        ) * (0.7 + Math.random() * 0.6);
+
+        updateTitle();
+
+        await new Promise(resolve => setTimeout(resolve, waitFor));
+      }
+    }
+
+    return allDids;
+
+    function updateTitle() {
+      didsMiniTitleMain.textContent =
+        allDids.length ? allDids.length.toLocaleString() + ' new accounts' :
+        'New accounts';
+
+      didsMiniTitleErrors.textContent =
+        !errors ? '' :
+         ' ' + errors.toLocaleString() + ' repo errors';
+
+      didsMiniTitleErrors.className =
+        fetchError ? 'dids-mini-title-errors dids-mini-title-errors-current' :
+        'dids-mini-title-errors';
 
     }
   }
