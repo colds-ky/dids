@@ -41,7 +41,7 @@ async function coldskyDIDs() {
     /** @type {import('@atproto/api').BskyAgent} */
     const atClient =
       // @ts-ignore
-      new ColdskyClient();
+      new ColdskyAgent();
     
     let blocks = 0;
     let allDids = [];
