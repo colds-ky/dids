@@ -169,7 +169,11 @@ async function coldskyDIDs() {
         await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 600));
         matrixElement.className = baseClass + ' loading';
         try {
-          const shardData = await fetch('https://dids.colds.ky/' + shardKey[0] + '/' + shardKey + '.json').then(x => x.json());
+          const shardURL =
+            (/http/i.test(location.pathname) ? '' : 'https://dids.colds.ky/') +
+            shardKey[0] + '/' + shardKey + '.json';
+
+          const shardData = await fetch(shardURL).then(x => x.json());
           matrixElement.className = baseClass + ' loaded';
           if (errorReported) errorCount--;
           successCount++;
