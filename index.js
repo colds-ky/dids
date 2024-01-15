@@ -63,9 +63,13 @@ async function coldskyDIDs() {
           }
         }
 
-        updateTitle();
-
-        if (!resp.data.cursor) break;
+        if (resp?.data?.cursor) {
+          cursor = resp.data.cursor;
+          updateTitle();
+        } else {
+          updateTitle();
+          break;
+        }
       } catch (error) {
         errors++;
         fetchError = true;
@@ -81,7 +85,7 @@ async function coldskyDIDs() {
       }
     }
 
-    return allDids;
+    return { dids: allDids, cursor };
 
     function updateTitle() {
       didsMiniTitleMain.textContent =
