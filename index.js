@@ -1,8 +1,16 @@
 // @ts-check
 
 async function coldskyDIDs() {
+
+  const letters = '234567abcdefghjiklmnopqrstuvwxyz';
+
   const statusBar = /** @type {HTMLElement} */(document.querySelector('.status-content'));
   const payload = /** @type {HTMLElement} */(document.querySelector('.payload'));
+
+  /**
+   * @type {{ [twoLetterKey: string]: string[] } | undefined}
+   */
+  let didBuckets;
 
   await load();
 
@@ -15,191 +23,298 @@ async function coldskyDIDs() {
     statusBar.textContent = 'Hydrating...';
 
     payload.className = 'payload payload-show';
-    const didsPanel = /** @type {HTMLElement} */(document.querySelector('.dids-panel'));
-    const shardsPanel = document.querySelector('.shards-panel');
+
+    const matrixElement = /** @type {HTMLElement} */(document.querySelector('.matrix'));
+    const bucketsAndElements = createBucketElements(matrixElement);
     const gitAuthPanel = document.querySelector('.git-auth-panel');
 
-    loadDIDs(cursors, didsPanel);
-    loadShards(cursors, shardsPanel);
+    const knownDidsTitleNumberElement = /** @type {HTMLElement} */(document.querySelector('.dids-title-number'));
+    const newDidsTitleNumberElement = /** @type {HTMLElement} */(document.querySelector('.new-dids-title-number'));
+    const newDidsTitleExtraElement = /** @type {HTMLElement} */(document.querySelector('.new-dids-title-extra'));
+    const totalDidsTitleNumberElement = /** @type {HTMLElement} */(document.querySelector('.total-dids-title-number'));
+
+    for (const twoLetterKey in bucketsAndElements) {
+      const entry = bucketsAndElements[twoLetterKey];
+      if (isPromise(entry.bucket.originalShortDIDs)) {
+        entry.bucket.originalShortDIDs.then(() => {
+          updateBucketElement(entry.bucket, entry.element);
+          updateTitlesWithTotal();
+        });
+      }
+    }
+
+    loadAndApplyNewAccounts();
+
+    /**
+     * @param {BucketData} bucket
+     * @param {HTMLElement} bucketElement
+     * @param {number=} newDidCount
+     */
+    async function updateBucketElement(bucket, bucketElement, newDidCount) {
+      let className;
+      if (isPromise(bucket.originalShortDIDs)) {
+        className = bucket.bucketFetchError ? 'matrix-element error-bucket' :
+          (
+            bucket.randomAlt ? 'matrix-element loading loading-alt' : 'matrix-element loading'
+          );
+      } else {
+        if (bucket.newShortDIDs?.size) className = (newDidCount ? 'matrix-element loaded new-dids fresh' : 'matrix-element loaded new-dids');
+        else className = 'matrix-element loaded';
+      }
+
+      if (bucketElement.className !== className) bucketElement.className = className;
+    }
+
+    function updateTitlesWithError() {
+      updateTitlesWithTotal(true)
+    }
+
+    function updateTitlesWithTotal(hasError) {
+      let totalKnownDids = 0;
+      let newDids = 0;
+      for (const twoLetterKey in bucketsAndElements) {
+        const { bucket } = bucketsAndElements[twoLetterKey];
+        if (!isPromise(bucket.originalShortDIDs)) {
+          totalKnownDids += bucket.originalShortDIDs.size;
+          newDids += bucket.newShortDIDs?.size || 0;
+        }
+      }
+
+      knownDidsTitleNumberElement.textContent = totalKnownDids.toLocaleString();
+      newDidsTitleNumberElement.textContent = newDids.toLocaleString();
+      totalDidsTitleNumberElement.textContent = (totalKnownDids + newDids).toLocaleString();
+
+      newDidsTitleExtraElement.textContent = hasError ? ' (with errors)' : '';
+    }
+
+    async function loadAndApplyNewAccounts() {
+      for await (const entry of loadShortDIDs(cursors.listRepos.cursor)) {
+        if (entry.error) {
+          updateTitlesWithError();
+          continue;
+        }
+
+        const expandedBuckets = new Map();
+
+        for (const shortDID of entry.shortDIDs) {
+          const twoLetterKey = getTwoLetterKey(shortDID);
+          const entry = bucketsAndElements[twoLetterKey];
+          if (entry.bucket.addNewShortDID(shortDID)) {
+            const expandedBucketCount = expandedBuckets.get(twoLetterKey);
+            if (!expandedBucketCount) expandedBuckets.set(twoLetterKey, 1);
+            else expandedBuckets.set(twoLetterKey, expandedBucketCount + 1);
+          }
+        }
+
+        for (const twoLetterKey of expandedBuckets.keys()) {
+          const entry = bucketsAndElements[twoLetterKey];
+          updateBucketElement(entry.bucket, entry.element, expandedBuckets.get(twoLetterKey));
+        }
+
+        updateTitlesWithTotal();
+      }
+    }
+  }
+
+  /** @param {HTMLElement} matrixElement */
+  function createBucketElements(matrixElement) {
+    /** @type {{ [twoLetterKey: string]: { bucket: BucketData, element: HTMLElement } }} */
+    const bucketsAndElements = {};
+
+    const webBucket = createBucket('web');
+    const webBucketElement = document.createElement('div');
+    webBucketElement.className = 'matrix-element';
+    webBucketElement.style.gridColumn = '1';
+    webBucketElement.style.gridRow = String(letters.length);
+    matrixElement.appendChild(webBucketElement);
+
+    bucketsAndElements['web'] = {
+      bucket: webBucket,
+      element: webBucketElement
+    };
+
+    for (let iFirstLetter = 0; iFirstLetter < letters.length; iFirstLetter++) {
+      for (let iSecondLetter = 0; iSecondLetter < letters.length; iSecondLetter++) {
+        const twoLetterKey = letters[iFirstLetter] + letters[iSecondLetter];
+        const bucket = createBucket(twoLetterKey);
+
+        const element = document.createElement('div');
+        element.className = bucket.randomAlt ? 'matrix-element matrix-element-alt' : 'matrix-element';
+        element.style.gridColumn = String(iFirstLetter + 2);
+        element.style.gridRow = String(iSecondLetter + 1);
+        matrixElement.appendChild(element);
+
+        bucketsAndElements[twoLetterKey] = {
+          bucket,
+          element
+        };
+      }
+    }
+
+    return bucketsAndElements;
   }
 
   /**
-   * @param {import('./cursors.json')} cursors
-   * @param {HTMLElement} didsPanel
+   * @param {string} originalCursor
    */
-  async function loadDIDs(cursors, didsPanel) {
-    const didsMiniTitle = document.createElement('h3');
-    didsMiniTitle.className = 'dids-mini-title';
-    const didsMiniTitleMain = document.createElement('span');
-    didsMiniTitleMain.textContent = 'New accounts';
-    didsMiniTitle.appendChild(didsMiniTitleMain);
-    const didsMiniTitleErrors = document.createElement('span');
-    didsMiniTitleErrors.className = 'dids-mini-title-errors';
-    didsMiniTitle.appendChild(didsMiniTitleErrors);
-    didsPanel.appendChild(didsMiniTitle);
+  async function* loadShortDIDs(originalCursor) {
+    let cursor = originalCursor;
+
+    let lastStart = Date.now();
+    let fetchError = false;
 
     /** @type {import('@atproto/api').BskyAgent} */
     const atClient =
       // @ts-ignore
       new ColdskyAgent();
-    
-    let blocks = 0;
-    let allDids = [];
-    let errors = 0;
-
-    let cursor = cursors.listRepos.cursor;
-    let lastStart = Date.now();
-    let fetchError = false;
 
     while (true) {
       try {
         const resp = await atClient.com.atproto.sync.listRepos({ cursor });
         fetchError = false;
+        lastStart = Date.now();
 
-        blocks++;
-        if (resp?.data?.repos?.length) {
-          for (const r of resp.data.repos) {
-            allDids.push(r.did);
-          }
-        }
-
+        let canContinue = false;
         if (resp?.data?.cursor) {
           cursor = resp.data.cursor;
-          updateTitle();
-        } else {
-          updateTitle();
-          break;
+          canContinue = true;
         }
+
+        if (resp?.data?.repos?.length) {
+          /** @type {string[]} */
+          const shortDIDs = resp.data.repos.map(repo => shortenDID(repo.did));
+          yield {
+            shortDIDs,
+            originalCursor,
+            cursor,
+            error: undefined
+          };
+        }
+
+        if (!canContinue) break;
       } catch (error) {
-        errors++;
         fetchError = true;
 
-        const waitFor = Math.max(
+        const waitFor = Math.min(
           45000,
-          Math.min(300, (Date.now() - lastStart) / 3)
+          Math.max(300, (Date.now() - lastStart) / 3)
         ) * (0.7 + Math.random() * 0.6);
+        console.warn('delay ', waitFor, 'ms ', error);
 
-        updateTitle();
+        yield {
+          shortDIDs: undefined,
+          originalCursor,
+          cursor,
+          /** @type {Error} */
+          error
+        };
 
         await new Promise(resolve => setTimeout(resolve, waitFor));
       }
     }
-
-    return { dids: allDids, cursor };
-
-    function updateTitle() {
-      didsMiniTitleMain.textContent =
-        allDids.length ? allDids.length.toLocaleString() + ' new accounts' :
-        'New accounts';
-
-      didsMiniTitleErrors.textContent =
-        !errors ? '' :
-         ' ' + errors.toLocaleString() + ' repo errors';
-
-      didsMiniTitleErrors.className =
-        fetchError ? 'dids-mini-title-errors dids-mini-title-errors-current' :
-        'dids-mini-title-errors';
-
-    }
   }
 
-  async function loadShards(cursors, shardsPanel) {
-    const letters = '234567abcdefghjiklmnopqrstuvwxyz';
+  /**
+   * @typedef {{
+   *  randomAlt: boolean;
+   *  twoLetterKey: string;
+   *  originalShortDIDs: Promise<Set<string>> | Set<string>;
+   *  newShortDIDs: Set<string> | undefined;
+   *  bucketFetchError: Error | undefined;
+   *  addNewShortDID(shortDID: string): boolean;
+   * }} BucketData
+   */
 
-    const miniTitle = document.createElement('h3');
-    miniTitle.className = 'mini-title';
-    const miniTitleMain = document.createElement('span');
-    miniTitleMain.textContent = 'Shards';
-    miniTitle.appendChild(miniTitleMain);
-    const miniTitleTotal = document.createElement('span');
-    miniTitleTotal.className = 'mini-title-total';
-    miniTitle.appendChild(miniTitleTotal);
+  /** @param {string} twoLetterKey */
+  function createBucket(twoLetterKey) {
+    /** @type {BucketData} */
+    const bucket = {
+      randomAlt: Math.random() > 0.5,
+      twoLetterKey,
+      originalShortDIDs: loadOriginalShortDIDs(),
+      newShortDIDs: undefined,
+      bucketFetchError: undefined,
+      addNewShortDID
+    };
 
-    shardsPanel.appendChild(miniTitle);
+    return bucket;
 
-    const matrix = document.createElement('div');
-    matrix.className = 'matrix';
-
-    const matrixElements = {};
-    const matrixPromises = {};
-    let successCount = 0;
-    let errorCount = 0;
-    let didCount = 0;
-    for (let iFirstLetter = 0; iFirstLetter < letters.length; iFirstLetter++) {
-      const firstLetter = letters[iFirstLetter];
-      for (let iSecondLetter = 0; iSecondLetter < letters.length; iSecondLetter++) {
-        const secondLetter = letters[iSecondLetter];
-        const key = firstLetter + secondLetter;
-        const element = document.createElement('div');
-        element.className = 'matrix-element rnd-' + (Math.random() > 0.5 ? '1' : '2');;
-        element.style.gridColumn = String(iFirstLetter + 1);
-        element.style.gridRow = String(iSecondLetter + 1);
-        matrixElements[key] = element;
-        matrix.appendChild(element);
-
-        matrixPromises[key] = loadShard(element, key);
-      }
-    }
-
-    shardsPanel.appendChild(matrix);
-
-    await Promise.all(Object.values(matrixPromises));
-
-    const matrixShards = {};
-    for (const key of Object.keys(matrixPromises)) {
-      matrixShards[key] = await matrixPromises[key];
-    }
-
-    function updateTitle() {
-      miniTitleMain.textContent =
-        successCount ?
-        (
-          successCount.toLocaleString() + ' shards' +
-          (errorCount ? ', ' + errorCount.toLocaleString() + ' retry' : '')
-        ) :
-          errorCount ? 'Shards: ' + errorCount.toLocaleString() + ' retry' : 'Shards';
-      if (didCount) {
-        miniTitleTotal.textContent = ' ' + didCount.toLocaleString() + ' DIDs';
-      }
-    }
-
-    async function loadShard(matrixElement, shardKey) {
-      const baseClass = matrixElement.className;
-
+    async function loadOriginalShortDIDs() {
       const start = Date.now();
       let errorReported = false;
 
       while (true) {
-        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 600));
-        matrixElement.className = baseClass + ' loading';
         try {
-          const shardURL = relativeURL(shardKey[0] + '/' + shardKey + '.json');
+          const shardURL = relativeURL(getShardBucketPath(twoLetterKey));
           const shardData = await fetch(shardURL).then(x => x.json());
-          matrixElement.className = baseClass + ' loaded';
-          if (errorReported) errorCount--;
-          successCount++;
-          didCount += Object.keys(shardData).length;
-          updateTitle();
-          return shardData;
-        } catch (error) {
-          if (!errorReported) {
-            errorCount++;
-            errorReported = true;
-            updateTitle();
+          if (errorReported)
+            bucket.bucketFetchError = undefined;
+          bucket.originalShortDIDs = new Set(shardData);
+
+          if (bucket.newShortDIDs) {
+            const removeAlreadyFetchedShortDIDs = [];
+            for (const shortDID in bucket.newShortDIDs) {
+              if (bucket.originalShortDIDs.has(shortDID))
+                removeAlreadyFetchedShortDIDs.push(shortDID);
+            }
+
+            if (removeAlreadyFetchedShortDIDs.length) {
+              for (const removeShortDID of removeAlreadyFetchedShortDIDs) {
+                bucket.newShortDIDs.delete(removeShortDID);
+              }
+            }
           }
 
-          matrixElement.className = baseClass + ' error';
-          const waitFor = Math.max(
+          return bucket.originalShortDIDs;
+        } catch (error) {
+          if (!errorReported) {
+            errorReported = true;
+            bucket.bucketFetchError = error;
+          }
+
+          const waitFor = Math.min(
             30000,
-            Math.min(300, (Date.now() - start) / 3)
+            Math.max(300, (Date.now() - start) / 3)
           ) * (0.7 + Math.random() * 0.6);
+          console.warn('delay ', waitFor, 'ms ', error);
 
           await new Promise(resolve => setTimeout(resolve, waitFor));
         }
       }
     }
+
+    /** @param {string} shortDID */
+    function addNewShortDID(shortDID) {
+      if (!isPromise(bucket.originalShortDIDs) && bucket.originalShortDIDs.has(shortDID))
+        return false;
+      if (bucket.newShortDIDs && bucket.newShortDIDs.has(shortDID))
+        return false;
+      if (!bucket.newShortDIDs) bucket.newShortDIDs = new Set();
+      bucket.newShortDIDs.add(shortDID);
+      return true;
+    }
   }
 
+  /** @param {string} did */
+  function getTwoLetterKey(did) {
+    if (did.length === 2 || did === 'web') return did;
+
+    const shortDID =
+      // @ts-ignore
+      shortenDID(did);
+
+    const twoLetterKey = shortDID.indexOf(':') >= 0 ? 'web' : shortDID.slice(0, 2);
+    return twoLetterKey;
+  }
+
+  /** @param {string} twoLetterKeyOrDID */
+  function getShardBucketPath(twoLetterKeyOrDID) {
+    const twoLetterKey = getTwoLetterKey(twoLetterKeyOrDID);
+    if (twoLetterKey === 'web') return 'web.json';
+    else return twoLetterKey[0] + '/' + twoLetterKey + '.json';
+  }
+
+  /** @param {string} url */
   function relativeURL(url) {
     return /http/i.test(location.protocol || '') ? url : 'https://dids.colds.ky/' + url;
   }
