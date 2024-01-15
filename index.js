@@ -19,6 +19,7 @@ async function coldskyDIDs() {
 
     /** @type {import('./cursors.json')} */
     const cursors = await fetch(relativeURL('cursors.json')).then(x => x.json());
+    let reflectCursor = 'orig ' + cursors.listRepos.cursor;
 
     statusBar.textContent = 'Hydrating...';
 
@@ -84,7 +85,8 @@ async function coldskyDIDs() {
       newDidsTitleNumberElement.textContent = newDids.toLocaleString();
       totalDidsTitleNumberElement.textContent = (totalKnownDids + newDids).toLocaleString();
 
-      newDidsTitleExtraElement.textContent = hasError ? ' (with errors)' : '';
+      const reflectCursorText = Number.isFinite(Number(reflectCursor)) ? Number(reflectCursor).toLocaleString() : reflectCursor;
+      newDidsTitleExtraElement.textContent = hasError ? reflectCursorText + ' (with errors)' : reflectCursorText;
     }
 
     async function loadAndApplyNewAccounts() {
@@ -94,6 +96,7 @@ async function coldskyDIDs() {
           continue;
         }
 
+        reflectCursor = entry.cursor;
         const expandedBuckets = new Map();
 
         for (const shortDID of entry.shortDIDs) {
@@ -109,6 +112,12 @@ async function coldskyDIDs() {
         for (const twoLetterKey of expandedBuckets.keys()) {
           const entry = bucketsAndElements[twoLetterKey];
           updateBucketElement(entry.bucket, entry.element, expandedBuckets.get(twoLetterKey));
+        }
+
+        for (const twoLetterKey in bucketsAndElements) {
+          const entry = bucketsAndElements[twoLetterKey];
+          if (expandedBuckets.has(twoLetterKey)) continue;
+          updateBucketElement(entry.bucket, entry.element);
         }
 
         updateTitlesWithTotal();
@@ -170,7 +179,7 @@ async function coldskyDIDs() {
 
     while (true) {
       try {
-        const resp = await atClient.com.atproto.sync.listRepos({ cursor });
+        const resp = await atClient.com.atproto.sync.listRepos({ cursor, limit: 995 });
         fetchError = false;
         lastStart = Date.now();
 

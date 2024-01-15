@@ -31141,7 +31141,7 @@ if (cid) {
         if (!entry)
           return false;
       }
-      return entry.delete[keys.length - 1];
+      return entry.delete(keys[keys.length - 1]);
     }
     function has(...keys) {
       let entry = storeMap;
@@ -31200,10 +31200,10 @@ if (cid) {
           );
         }
         function handleFetchError(error) {
-          if (/\brate\b/i.test(error.message)) {
+          if (/\brate\b/i.test(error.message || "")) {
             const waitTime = Math.min(
               Math.max(1e3, (Date.now() - startFetch) / 3),
-              2e4
+              1e3
             );
             return new Promise((resolve) => setTimeout(resolve, waitTime)).then(() => fetchWithRateHandling());
           } else {
