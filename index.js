@@ -41,21 +41,32 @@ async function coldskyDIDs() {
     const newDidsTitleExtraElement = /** @type {HTMLElement} */(document.querySelector('.new-dids-title-extra'));
     const totalDidsTitleNumberElement = /** @type {HTMLElement} */(document.querySelector('.total-dids-title-number'));
 
+    let allBucketsLoaded = false;
+    let allNewAccountsLoaded = false;
+
+    const loadAllBuckets = [];
     for (const twoLetterKey in bucketsAndElements) {
       const entry = bucketsAndElements[twoLetterKey];
       if (isPromise(entry.bucket.originalShortDIDs)) {
-        entry.bucket.originalShortDIDs.then(() => {
+        loadAllBuckets.push(entry.bucket.originalShortDIDs.then(() => {
           updateBucketElement(entry.bucket, entry.element);
           updateTitlesWithTotal();
-        });
+        }));
       }
     }
+    Promise.all(loadAllBuckets).then(() => {
+      allBucketsLoaded = true;
+    });
 
-    loadAndApplyNewAccounts();
+    const loadNewAccountsPromise = loadAndApplyNewAccounts();
+    loadNewAccountsPromise.then(() => {
+      allNewAccountsLoaded = true;
+    });
 
     function tryCommit() {
       pauseUpdatesPromise = (async () => {
-        githubCommitStatus.textContent = 'Authenticating...';
+        githubCommitStatus.textContent = '';
+        statusBar.textContent = 'Authenticating...';
         try {
           githubCommitButton.disabled = true;
           gitAuthPanel.classList.add('github-commit-in-progress');
@@ -147,6 +158,7 @@ async function coldskyDIDs() {
           completeLabel.className = 'complete-label';
           completeLabel.textContent = 'Complete.';
           githubCommitStatus.appendChild(completeLabel);
+          githubCommitStatus.textContent = 'Committed new accounts.';
 
         } catch (error) {
           gitAuthPanel.classList.remove('github-commit-in-progress');
@@ -213,7 +225,11 @@ async function coldskyDIDs() {
 
       if (newDids) {
         // and all buckets are populated
-        githubCommitButton.disabled = false;
+        if (githubCommitButton.disabled) {
+          githubCommitButton.disabled = false;
+          statusBar.textContent = 'Pumping new accounts...';
+        }
+
         githubCommitButton.onclick = tryCommit;
       }
     }
@@ -252,6 +268,8 @@ async function coldskyDIDs() {
 
         updateTitlesWithTotal();
       }
+
+      statusBar.textContent = 'All accounts loaded.';
     }
   }
 
