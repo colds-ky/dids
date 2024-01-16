@@ -6,12 +6,15 @@ async function coldskyDIDs() {
   const coldsky = window['coldsky'];
   const { isPromise, ColdskyAgent, shortenDID } = coldsky;
 
+  let pauseUpdatesPromise;
+
   const letters = '234567abcdefghjiklmnopqrstuvwxyz';
 
   const statusBar = /** @type {HTMLElement} */(document.querySelector('.status-content'));
   const payload = /** @type {HTMLElement} */(document.querySelector('.payload'));
   const githubAuthTokenInput = /** @type {HTMLInputElement} */(document.querySelector('.github-auth-token'));
   const githubCommitButton = /** @type {HTMLButtonElement} */(document.querySelector('.github-commit'));
+  const githubCommitStatus = /** @type {HTMLElement} */(document.querySelector('.github-commit-status'));
 
   await load();
 
@@ -28,7 +31,7 @@ async function coldskyDIDs() {
 
     const matrixElement = /** @type {HTMLElement} */(document.querySelector('.matrix'));
     const bucketsAndElements = createBucketElements(matrixElement);
-    const gitAuthPanel = document.querySelector('.git-auth-panel');
+    const gitAuthPanel = /** @type {HTMLElement} */(document.querySelector('.git-auth-panel'));
 
     const knownDidsTitleNumberElement = /** @type {HTMLElement} */(document.querySelector('.dids-title-number'));
     const newDidsTitleNumberElement = /** @type {HTMLElement} */(document.querySelector('.new-dids-title-number'));
@@ -46,6 +49,96 @@ async function coldskyDIDs() {
     }
 
     loadAndApplyNewAccounts();
+
+    function tryCommit() {
+      pauseUpdatesPromise = (async () => {
+        githubCommitStatus.textContent = 'Authenticating...';
+        try {
+          githubCommitButton.disabled = true;
+          gitAuthPanel.classList.add('github-commit-in-progress');
+
+          const authToken = githubAuthTokenInput.value;
+          if (!authToken) {
+            throw new Error('Please provide a GitHub personal access token');
+          }
+
+          const octokit = new Octokit({ auth: authToken });
+          const user = await octokit.rest.users.getAuthenticated();
+          console.log('auth user: ', user);
+
+          const commitResponse = await octokit.rest.repos.getCommit({
+            owner: 'colds-ky',
+            repo: 'dids',
+            ref: 'main'
+          });
+          console.log('commit: ', commitResponse);
+
+          githubCommitStatus.textContent = 'Preparing files...';
+
+          const changeFiles = {};
+          let totalFiles = 0;
+          let incrementChars = 0;
+          let totalChars = 0;
+          for (const twoLetterKey in bucketsAndElements) {
+            const entry = bucketsAndElements[twoLetterKey];
+            if (!entry.bucket.originalJSONText || !entry.bucket.newShortDIDs?.size) {
+              console.log('JSON text is not retrieved: ' + twoLetterKey);
+              continue;
+            }
+
+            const lead = entry.bucket.originalJSONText.replace(/\s*\]\s*$/, '');
+            const incrementJSON = packDidsJson([...entry.bucket.newShortDIDs], ',\n', '\n]\n');
+            const path = getShardBucketPath(twoLetterKey);
+            changeFiles[path] = lead + incrementJSON;
+
+            incrementChars += incrementJSON.length;
+            totalFiles++;
+            totalChars += lead.length + incrementJSON.length;
+          }
+
+          githubCommitStatus.textContent = 
+            'Commit ' + totalFiles + ' files,' +
+            ' +' + incrementChars.toLocaleString() + 'ch ' +
+            totalChars.toLocaleString() + ' total...';
+          
+          console.log('changeFiles: ', changeFiles);
+
+          const { totalKnownDids, newDids } = getTotals();
+
+          const commitMessage =
+            '+' + newDids.toLocaleString() + ' to ' + totalKnownDids.toLocaleString() + ' dids';
+
+          await octokit.createOrUpdateFiles({
+            owner: 'colds-ky',
+            repo: 'dids',
+            branch: 'main',
+            changes: [
+              {
+                message: commitMessage,
+                files: changeFiles
+              }
+            ],
+          });
+
+          const completeLabel = document.createElement('div');
+          completeLabel.className = 'complete-label';
+          completeLabel.textContent = 'Complete.';
+          githubCommitStatus.appendChild(completeLabel);
+
+        } catch (error) {
+          gitAuthPanel.classList.remove('github-commit-in-progress');
+          const errorLabel = document.createElement('div');
+          errorLabel.className = 'error-label';
+          for (const ln of (error?.stack || error?.message || error).split('\n')) {
+            const line = document.createElement('div');
+            line.textContent = ln;
+            errorLabel.appendChild(line);
+          }
+          githubCommitStatus.appendChild(errorLabel);
+          alert('GithHub update failed: ' + (error?.message || error));
+        }
+      })();
+    }
 
     /**
      * @param {BucketData} bucket
@@ -71,7 +164,7 @@ async function coldskyDIDs() {
       updateTitlesWithTotal(true)
     }
 
-    function updateTitlesWithTotal(hasError) {
+    function getTotals() {
       let totalKnownDids = 0;
       let newDids = 0;
       for (const twoLetterKey in bucketsAndElements) {
@@ -81,6 +174,12 @@ async function coldskyDIDs() {
           newDids += bucket.newShortDIDs?.size || 0;
         }
       }
+
+      return { totalKnownDids, newDids };
+    }
+
+    function updateTitlesWithTotal(hasError) {
+      const { totalKnownDids, newDids } = getTotals();
 
       knownDidsTitleNumberElement.textContent = totalKnownDids.toLocaleString();
       newDidsTitleNumberElement.textContent = newDids.toLocaleString();
@@ -92,11 +191,13 @@ async function coldskyDIDs() {
       if (newDids) {
         // and all buckets are populated
         githubCommitButton.disabled = false;
+        githubCommitButton.onclick = tryCommit;
       }
     }
 
     async function loadAndApplyNewAccounts() {
       for await (const entry of loadShortDIDs(cursors.listRepos.cursor)) {
+        await pauseUpdatesPromise;
         if (entry.error) {
           updateTitlesWithError();
           continue;
@@ -176,7 +277,7 @@ async function coldskyDIDs() {
     let cursor = originalCursor;
 
     let lastStart = Date.now();
-    let fetchError = false;
+    let fetchErrorStart;
 
     /** @type {import('@atproto/api').BskyAgent} */
     const atClient =
@@ -186,7 +287,8 @@ async function coldskyDIDs() {
     while (true) {
       try {
         const resp = await atClient.com.atproto.sync.listRepos({ cursor, limit: 995 });
-        fetchError = false;
+        await pauseUpdatesPromise;
+        fetchErrorStart = undefined;
         lastStart = Date.now();
 
         let canContinue = false;
@@ -208,7 +310,8 @@ async function coldskyDIDs() {
 
         if (!canContinue) break;
       } catch (error) {
-        fetchError = true;
+        if (!fetchErrorStart)
+          fetchErrorStart = Date.now();
 
         const waitFor = Math.min(
           45000,
@@ -221,7 +324,9 @@ async function coldskyDIDs() {
           originalCursor,
           cursor,
           /** @type {Error} */
-          error
+          error,
+          errorStart: fetchErrorStart,
+          retryAt: Date.now() + waitFor
         };
 
         await new Promise(resolve => setTimeout(resolve, waitFor));
@@ -234,6 +339,7 @@ async function coldskyDIDs() {
    *  randomAlt: boolean;
    *  twoLetterKey: string;
    *  originalShortDIDs: Promise<Set<string>> | Set<string>;
+   *  originalJSONText: string | undefined;
    *  newShortDIDs: Set<string> | undefined;
    *  bucketFetchError: Error | undefined;
    *  addNewShortDID(shortDID: string): boolean;
@@ -247,6 +353,7 @@ async function coldskyDIDs() {
       randomAlt: Math.random() > 0.5,
       twoLetterKey,
       originalShortDIDs: loadOriginalShortDIDs(),
+      originalJSONText: undefined,
       newShortDIDs: undefined,
       bucketFetchError: undefined,
       addNewShortDID
@@ -261,10 +368,12 @@ async function coldskyDIDs() {
       while (true) {
         try {
           const shardURL = relativeURL(getShardBucketPath(twoLetterKey));
-          const shardData = await fetch(shardURL).then(x => x.json());
+          const shardText = await fetch(shardURL).then(x => x.text());
+          const shardData = JSON.parse(shardText);
           if (errorReported)
             bucket.bucketFetchError = undefined;
           bucket.originalShortDIDs = new Set(shardData);
+          bucket.originalJSONText = shardText;
 
           if (bucket.newShortDIDs) {
             const removeAlreadyFetchedShortDIDs = [];
@@ -308,6 +417,19 @@ async function coldskyDIDs() {
       bucket.newShortDIDs.add(shortDID);
       return true;
     }
+  }
+
+  /** @param {string[]} dids */
+  function packDidsJson(dids, lead = '[\n', tail = '\n]\n') {
+    const DIDS_SINGLE_LINE = 6;
+    const didsLines = [];
+    for (let i = 0; i < dids.length; i += DIDS_SINGLE_LINE) {
+      const chunk = dids.slice(i, i + DIDS_SINGLE_LINE);
+      const line = chunk.map(shortDID => '"' + shortDID + '"').join(',');
+      didsLines.push(line);
+    }
+
+    return lead + didsLines.join(',\n') + tail;
   }
 
   /** @param {string} did */
