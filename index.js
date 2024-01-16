@@ -2,15 +2,16 @@
 
 async function coldskyDIDs() {
 
+  /** @type {import('./libs')} */
+  const coldsky = window['coldsky'];
+  const { isPromise, ColdskyAgent, shortenDID } = coldsky;
+
   const letters = '234567abcdefghjiklmnopqrstuvwxyz';
 
   const statusBar = /** @type {HTMLElement} */(document.querySelector('.status-content'));
   const payload = /** @type {HTMLElement} */(document.querySelector('.payload'));
-
-  /**
-   * @type {{ [twoLetterKey: string]: string[] } | undefined}
-   */
-  let didBuckets;
+  const githubAuthTokenInput = /** @type {HTMLInputElement} */(document.querySelector('.github-auth-token'));
+  const githubCommitButton = /** @type {HTMLButtonElement} */(document.querySelector('.github-commit'));
 
   await load();
 
@@ -87,6 +88,11 @@ async function coldskyDIDs() {
 
       const reflectCursorText = Number.isFinite(Number(reflectCursor)) ? Number(reflectCursor).toLocaleString() : reflectCursor;
       newDidsTitleExtraElement.textContent = hasError ? 'cursor: ' + reflectCursorText + ' (with errors)' : 'cursor: ' + reflectCursorText;
+
+      if (newDids) {
+        // and all buckets are populated
+        githubCommitButton.disabled = false;
+      }
     }
 
     async function loadAndApplyNewAccounts() {
