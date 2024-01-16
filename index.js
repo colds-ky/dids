@@ -1,6 +1,9 @@
 // @ts-check
 
 async function coldskyDIDs() {
+  if (!window['Buffer']) {
+    window['Buffer'] = { from: btoa.bind(window) };
+  }
 
   /** @type {import('./libs')} */
   const coldsky = window['coldsky'];
@@ -76,6 +79,26 @@ async function coldskyDIDs() {
           githubCommitStatus.textContent = 'Preparing files...';
 
           const changeFiles = {};
+
+          // seed cursors with latest
+          changeFiles['cursors.json'] = JSON.stringify({
+            ...cursors,
+            listRepos: {
+              cursor: reflectCursor,
+              timestamp: new Date().toISOString(),
+              client:
+                (navigator.platform ?
+                  'web/' + (navigator.platform.replace(/win32/i, 'win')) :
+                  'web') + ' ' +
+                (!navigator.userAgent ? '' :
+                  ' ' +
+                  (/mobile/i.test(navigator.userAgent) ? 'mobile ' : '') +
+                  navigator.userAgent.trim().split(/\s+/g).slice(-1)[0]) +
+                (commitResponse?.data?.sha ? ' git:?' :
+                  ' git:' + commitResponse?.data?.sha?.slice(0, 7))
+            }
+          }, null, 2);
+
           let totalFiles = 0;
           let incrementChars = 0;
           let totalChars = 0;
