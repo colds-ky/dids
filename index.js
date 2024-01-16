@@ -327,7 +327,8 @@ async function coldskyDIDs() {
 
     while (true) {
       try {
-        const resp = await atClient.com.atproto.sync.listRepos({ cursor, limit: 995 });
+        const currentCursor = cursor;
+        const resp = await atClient.com.atproto.sync.listRepos({ cursor: currentCursor, limit: 995 });
         await pauseUpdatesPromise;
         fetchErrorStart = undefined;
         lastStart = Date.now();
@@ -344,7 +345,7 @@ async function coldskyDIDs() {
           yield {
             shortDIDs,
             originalCursor,
-            cursor,
+            cursor: currentCursor, // never return the very last cursor, always one step behind, a cursor that worked!
             error: undefined
           };
         }
