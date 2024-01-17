@@ -5,10 +5,6 @@ async function coldskyDIDs() {
     window['Buffer'] = { from: btoa.bind(window) };
   }
 
-  /** @type {import('./libs')} */
-  const coldsky = window['coldsky'];
-  const { isPromise, ColdskyAgent, shortenDID } = coldsky;
-
   let pauseUpdatesPromise;
 
   const letters = '234567abcdefghjiklmnopqrstuvwxyz';
@@ -76,7 +72,9 @@ async function coldskyDIDs() {
             throw new Error('Please provide a GitHub personal access token');
           }
 
-          const octokit = new Octokit({ auth: authToken });
+          const octokit =
+            // @ts-ignore
+            new Octokit({ auth: authToken });
           const user = await octokit.rest.users.getAuthenticated();
           console.log('auth user: ', user);
 
@@ -320,28 +318,27 @@ async function coldskyDIDs() {
     let lastStart = Date.now();
     let fetchErrorStart;
 
-    /** @type {import('@atproto/api').BskyAgent} */
-    const atClient =
-      // @ts-ignore
-      new ColdskyAgent();
-
     while (true) {
       try {
         const currentCursor = cursor;
-        const resp = await atClient.com.atproto.sync.listRepos({ cursor: currentCursor, limit: 995 });
+        const resp = await fetch(
+          'https://corsproxy.io/?' +
+          'https://bsky.network/xrpc/com.atproto.sync.listRepos?' +
+          'cursor=' + currentCursor + '&limit=995');
         await pauseUpdatesPromise;
+        const data = await resp.json();
         fetchErrorStart = undefined;
         lastStart = Date.now();
 
         let canContinue = false;
-        if (resp?.data?.cursor) {
-          cursor = resp.data.cursor;
+        if (data?.cursor) {
+          cursor = data.cursor;
           canContinue = true;
         }
 
-        if (resp?.data?.repos?.length) {
+        if (data?.repos?.length) {
           /** @type {string[]} */
-          const shortDIDs = resp.data.repos.map(repo => shortenDID(repo.did));
+          const shortDIDs = data.repos.map(repo => shortenDID(repo.did));
           yield {
             shortDIDs,
             originalCursor,
@@ -492,6 +489,28 @@ async function coldskyDIDs() {
     if (twoLetterKey === 'web') return 'web.json';
     else return twoLetterKey[0] + '/' + twoLetterKey + '.json';
   }
+
+  /**
+ * @param {T} did
+ * @returns {T}
+ * @template {string | undefined | null} T
+ */
+  function shortenDID(did) {
+    return did && /** @type {T} */(did.replace(_shortenDID_Regex, '').toLowerCase() || undefined);
+  }
+
+  const _shortenDID_Regex = /^did\:plc\:/;
+
+
+  /**
+ * @param {any} x
+ * @returns {x is Promise<any>}
+ */
+  function isPromise(x) {
+    if (!x || typeof x !== 'object') return false;
+    else return typeof x.then === 'function';
+  }
+
 
   /** @param {string} url */
   function relativeURL(url) {
