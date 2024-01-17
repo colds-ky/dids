@@ -128,11 +128,11 @@ async function coldskyDIDs() {
             totalChars += lead.length + incrementJSON.length;
           }
 
-          githubCommitStatus.textContent = 
+          githubCommitStatus.textContent =
             'Commit ' + totalFiles + ' files,' +
             ' +' + incrementChars.toLocaleString() + 'ch ' +
             totalChars.toLocaleString() + ' total...';
-          
+
           console.log('changeFiles: ', changeFiles);
 
           const { totalKnownDids, newDids } = getTotals();
@@ -233,7 +233,7 @@ async function coldskyDIDs() {
     }
 
     async function loadAndApplyNewAccounts() {
-      for await (const entry of loadShortDIDs(cursors.listRepos.cursor)) {
+      for await (const entry of pullNewShortDIDs(cursors.listRepos.cursor)) {
         await pauseUpdatesPromise;
         if (entry.error) {
           updateTitlesWithError();
@@ -309,32 +309,63 @@ async function coldskyDIDs() {
     return bucketsAndElements;
   }
 
+  function loadBucketsAndPull() {
+    const result = {
+      totalAccounts: 0,
+      newAccounts: 0,
+      cursors: {
+        original: '',
+        lastSuccess: '',
+        inUse: ''
+      }
+    };
+  }
+
   /**
    * @param {string} originalCursor
    */
-  async function* loadShortDIDs(originalCursor) {
+  async function* pullNewShortDIDs(originalCursor) {
     let cursor = originalCursor;
 
     let lastStart = Date.now();
     let fetchErrorStart;
 
+    // first cycles always forced - because it was the last one last time
+    let forceCycles = 2;
     while (true) {
       try {
-        const currentCursor = cursor;
-        const resp = await fetch(
+        const fetchForCursor = cursor;
+        const fetchURL =
           'https://corsproxy.io/?' +
           'https://bsky.network/xrpc/com.atproto.sync.listRepos?' +
-          'cursor=' + currentCursor + '&limit=995');
+          'cursor=' + fetchForCursor + '&limit=995';
+
+        const resp = forceCycles ?
+          await fetch(fetchURL, { cache: 'reload' }) :
+          await fetch(fetchURL);
+
         await pauseUpdatesPromise;
-        const data = await resp.json();
+
+        let data = await resp.json();
+        await pauseUpdatesPromise;
+
+        let canContinue = true;
+
+        if (!data.cursor) {
+          if (!forceCycles) {
+            forceCycles = 2;
+            // retry, on the same cursor too
+            continue;
+          }
+
+          // already in forceful mode, can as well give up
+          canContinue = false;
+        } else {
+          cursor = data.cursor;
+        }
+
         fetchErrorStart = undefined;
         lastStart = Date.now();
-
-        let canContinue = false;
-        if (data?.cursor) {
-          cursor = data.cursor;
-          canContinue = true;
-        }
 
         if (data?.repos?.length) {
           /** @type {string[]} */
@@ -342,7 +373,7 @@ async function coldskyDIDs() {
           yield {
             shortDIDs,
             originalCursor,
-            cursor: currentCursor, // never return the very last cursor, always one step behind, a cursor that worked!
+            cursor: fetchForCursor, // return a cursor that has worked
             error: undefined
           };
         }
