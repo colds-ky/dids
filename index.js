@@ -311,14 +311,144 @@ async function coldskyDIDs() {
 
   function loadBucketsAndPull() {
     const result = {
-      totalAccounts: 0,
+      knownAccounts: 0,
       newAccounts: 0,
       cursors: {
+        json: /** @type {import('./cursors.json')} */({}),
         original: '',
-        lastSuccess: '',
-        inUse: ''
-      }
+        lastSuccess: ''
+      },
+      /** @type {{ [twoLetterKey: string]: BucketData }} */
+      buckets: {},
+      /** @type {ErrorStats | undefined} */
+      pullError: undefined,
+      allAccountsLoaded: false,
+      allNewDIDsLoaded: false,
+      /** @type {Promise | undefined} */
+      pauseUpdatesPromise: undefined,
+      /** @type {((buckets?: BucketData[]) => void) | undefined} */
+      onchange: undefined
     };
+
+    initAllBuckets();
+    pumpNewDIDs();
+
+    return result;
+
+    async function pumpNewDIDs() {
+      result.cursors.json = await fetchCursorsJSON();
+      result.cursors.original = result.cursors.json.listRepos.cursor;
+
+      /** @type {Set<BucketData>} */
+      const triggerBuckets = new Set();
+      for await (const block of pullNewShortDIDs()) {
+        await result.pauseUpdatesPromise;
+
+        if (block.error) {
+          result.pullError = block.error;
+          triggerUpdate();
+          continue;
+        }
+
+        result.cursors.lastSuccess = block.cursor;
+        triggerBuckets.clear();
+
+        for (const shortDID in block.shortDIDs) {
+          const twoLetterKey = getTwoLetterKey(shortDID);
+          const bucket = result.buckets[twoLetterKey];
+          const isNew = bucket.addNewShortDID(twoLetterKey);
+          if (isNew) {
+            result.newAccounts++;
+            triggerBuckets.add(bucket);
+          }
+        }
+
+        if (triggerBuckets.size) {
+          triggerUpdate(Array.from(triggerBuckets));
+        }
+      }
+
+      result.allAccountsLoaded = true;
+
+      async function fetchCursorsJSON() {
+        const startDate = Date.now();
+        while (true) {
+          try {
+            /** @type {import('./cursors.json')} */
+            const cursorsJSON = await fetch('./cursors.json', { cache: 'no-cache' });
+            await pauseUpdatesPromise;
+
+            return cursorsJSON;
+          } catch (fetchCursorError) {
+            let waitFor = Math.min(
+              45000,
+              Math.max(300, (Date.now() - startDate) / 3)
+            ) * (0.7 + Math.random() * 0.6);
+            let retryAt = Date.now() + waitFor;
+
+            await pauseUpdatesPromise;
+            waitFor = Math.max(0, retryAt - Date.now());
+
+            if (!result.pullError) {
+              result.pullError = {
+                current: fetchCursorError,
+                started: Date.now(),
+                tries: 1,
+                retryAt: Date.now() + waitFor
+              };
+            } else {
+              result.pullError.tries++;
+              result.pullError.waitFor = Date.now() + waitFor;
+            }
+
+            console.warn('./cursors.json: delay ', waitFor, 'ms ', error);
+            await new Promise(resolve => setTimeout(resolve, waitFor));
+          }
+        }
+      }
+    }
+
+    function initAllBuckets() {
+      result.buckets['web'] = createBucket('web');
+      for (let iFirstLetter = 0; iFirstLetter < letters.length; iFirstLetter++) {
+        for (let iSecondLetter = 0; iSecondLetter < letters.length; iSecondLetter++) {
+          const twoLetterKey = letters[iFirstLetter] + letters[iSecondLetter];
+          result.buckets = createBucket(twoLetterKey);
+        }
+      }
+
+      let outstandingBuckets = 0;
+      for (const twoLetterKey in result.buckets) {
+        const bucket = result.buckets[twoLetterKey];
+        if (isPromise(bucket.originalShortDIDs)) {
+          outstandingBuckets++;
+          bucket.originalJSONText.then(() => updateBucketFetched(twoLetterKey, bucket));
+        } else {
+          result.knownAccounts += bucket.originalShortDIDs.size;
+        }
+      }
+
+      /**
+ * @param {string} twoLetterKey
+ * @param {BucketData} bucket 
+ */
+      function updateBucketFetched(twoLetterKey, bucket) {
+        result.knownAccounts += bucket.originalShortDIDs.size;
+        outstandingBuckets--;
+
+        if (!outstandingBuckets) result.allAccountsLoaded = true;
+
+        triggerUpdate([bucket]);
+      }
+    }
+
+
+    /** @param {BucketData[]} [buckets] */
+    function triggerUpdate(buckets) {
+      if (typeof result.onchange === 'function') {
+        result.onchange(buckets);
+      }
+    }
   }
 
   /**
@@ -329,6 +459,7 @@ async function coldskyDIDs() {
 
     let lastStart = Date.now();
     let fetchErrorStart;
+    let errorCount = 0;
 
     // first cycles always forced - because it was the last one last time
     let forceCycles = 2;
@@ -365,6 +496,7 @@ async function coldskyDIDs() {
         }
 
         fetchErrorStart = undefined;
+        errorCount = 0;
         lastStart = Date.now();
 
         if (data?.repos?.length) {
@@ -382,6 +514,7 @@ async function coldskyDIDs() {
       } catch (error) {
         if (!fetchErrorStart)
           fetchErrorStart = Date.now();
+        errorCount++;
 
         const waitFor = Math.min(
           45000,
@@ -393,10 +526,13 @@ async function coldskyDIDs() {
           shortDIDs: undefined,
           originalCursor,
           cursor,
-          /** @type {Error} */
-          error,
-          errorStart: fetchErrorStart,
-          retryAt: Date.now() + waitFor
+          /** @type {ErrorStats} */
+          error: {
+            current: error,
+            retryAt,
+            tries: errorCount,
+            started: fetchErrorStart
+          }
         };
 
         await new Promise(resolve => setTimeout(resolve, waitFor));
@@ -414,6 +550,15 @@ async function coldskyDIDs() {
    *  bucketFetchError: Error | undefined;
    *  addNewShortDID(shortDID: string): boolean;
    * }} BucketData
+   */
+
+  /**
+   * @typedef {{
+   *  current: Error | undefined,
+   *  tries: number,
+   *  started: number,
+   *  retryAt: number
+   * }} ErrorStats
    */
 
   /** @param {string} twoLetterKey */
