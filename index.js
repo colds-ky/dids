@@ -464,7 +464,7 @@ async function coldskyDIDs() {
         const fetchURL =
           'https://corsproxy.io/?' +
           'https://bsky.network/xrpc/com.atproto.sync.listRepos?' +
-          'limit=995' +
+          'limit=' + (forceCycles ? '995' : '998') +
           (fetchForCursor ? '&cursor=' + fetchForCursor : '');
 
         const resp = forceCycles ?
@@ -478,23 +478,18 @@ async function coldskyDIDs() {
 
         let canContinue = true;
 
-        if (!data.cursor || !data.repos?.length) {
-          if (!forceCycles) {
-            if ((retriesFor[String(fetchForCursor)] || 0) <= 4) {
-              forceCycles = 2;
-              retriesFor[String(fetchForCursor)] = (retriesFor[String(fetchForCursor)] || 0) + 1;
-              cursor = lastFruitfulCursor;
-              continue;
-            }
-          }
-
-          // already in forceful mode, can as well give up
+        if (data.cursor && data?.repos?.length > 10) {
+          cursor = data.cursor;
+          if (forceCycles) forceCycles--;
+        } else if (forceCycles && retriesFor[String(fetchForCursor)] > 4) {
           canContinue = false;
         } else {
-          cursor = data.cursor;
+          // data is empty or incomplete: try again
+          forceCycles = 2;
+          retriesFor[String(fetchForCursor)] = (retriesFor[String(fetchForCursor)] || 0) + 1;
+          cursor = lastFruitfulCursor;
+          continue;
         }
-
-        if (forceCycles) forceCycles--;
 
         fetchErrorStart = undefined;
         errorCount = 0;
