@@ -168,14 +168,14 @@
       margin: 1px;
       transition: background-color 1.5s ease-in-out;
     }
-    .payload .matrix .matrix-element.matrix-element-alt {
+    /* .payload .matrix .matrix-element.random-alt {
       background: #00ccff53;
-    }
+    } */
 
-    .payload .matrix .matrix-element.loading {
+    .payload .matrix .matrix-element {
       background: #ff0000b3;
     }
-    .payload .matrix .matrix-element.loading.loading-alt {
+    .payload .matrix .matrix-element.random-alt {
       background: #ff000053;
     }
     .payload .matrix .matrix-element.error {
@@ -261,7 +261,7 @@
       <div class="git-auth-panel">
         <button class="github-commit" disabled>Commit changes</button>
         <br>
-        <input type="text" class="github-auth-token" name="github-auth-token" autocomplete="github-auth-token" id="github-auth-token" placeholder="Github auth token">
+        <input type="text" class="github-auth-token" name="github-auth-token" autocomplete="on" id="github-auth-token" placeholder="Github auth token">
         <div class="github-commit-status"></div>
       </div>
 

@@ -1,25 +1,6 @@
 // @ts-check
 
 async function coldskyDIDs() {
-  if (!window['Buffer']) {
-    window['Buffer'] = { from: btoa.bind(window) };
-  }
-
-  /** @type {import('./libs')} */
-  const coldsky = window['coldsky'];
-  const { isPromise, ColdskyAgent, shortenDID } = coldsky;
-
-  let pauseUpdatesPromise;
-
-  const letters = '234567abcdefghjiklmnopqrstuvwxyz';
-
-  const statusBar = /** @type {HTMLElement} */(document.querySelector('.status-content'));
-  const payload = /** @type {HTMLElement} */(document.querySelector('.payload'));
-  const githubAuthTokenInput = /** @type {HTMLInputElement} */(document.querySelector('.github-auth-token'));
-  const githubCommitButton = /** @type {HTMLButtonElement} */(document.querySelector('.github-commit'));
-  const githubCommitStatus = /** @type {HTMLElement} */(document.querySelector('.github-commit-status'));
-
-  await load();
 
   async function load() {
     statusBar.textContent = 'Detecting cursors...';
@@ -33,7 +14,7 @@ async function coldskyDIDs() {
     payload.className = 'payload payload-show';
 
     const matrixElement = /** @type {HTMLElement} */(document.querySelector('.matrix'));
-    const bucketsAndElements = createBucketElements(matrixElement);
+    //const bucketsAndElements = createBucketElements(matrixElement);
     const gitAuthPanel = /** @type {HTMLElement} */(document.querySelector('.git-auth-panel'));
 
     const knownDidsTitleNumberElement = /** @type {HTMLElement} */(document.querySelector('.dids-title-number'));
@@ -41,27 +22,10 @@ async function coldskyDIDs() {
     const newDidsTitleExtraElement = /** @type {HTMLElement} */(document.querySelector('.new-dids-title-extra'));
     const totalDidsTitleNumberElement = /** @type {HTMLElement} */(document.querySelector('.total-dids-title-number'));
 
-    let allBucketsLoaded = false;
-    let allNewAccountsLoaded = false;
+    const pumpingState = loadBucketsAndPullNewDIDs();
+    const renderedBuckets = renderBuckets(matrixElement);
 
-    const loadAllBuckets = [];
-    for (const twoLetterKey in bucketsAndElements) {
-      const entry = bucketsAndElements[twoLetterKey];
-      if (isPromise(entry.bucket.originalShortDIDs)) {
-        loadAllBuckets.push(entry.bucket.originalShortDIDs.then(() => {
-          updateBucketElement(entry.bucket, entry.element);
-          updateTitlesWithTotal();
-        }));
-      }
-    }
-    Promise.all(loadAllBuckets).then(() => {
-      allBucketsLoaded = true;
-    });
-
-    const loadNewAccountsPromise = loadAndApplyNewAccounts();
-    loadNewAccountsPromise.then(() => {
-      allNewAccountsLoaded = true;
-    });
+    await pumpUpdates();
 
     function tryCommit() {
       pauseUpdatesPromise = (async () => {
@@ -76,7 +40,9 @@ async function coldskyDIDs() {
             throw new Error('Please provide a GitHub personal access token');
           }
 
-          const octokit = new Octokit({ auth: authToken });
+          const octokit =
+            // @ts-ignore
+            new Octokit({ auth: authToken });
           const user = await octokit.rest.users.getAuthenticated();
           console.log('auth user: ', user);
 
@@ -130,11 +96,11 @@ async function coldskyDIDs() {
             totalChars += lead.length + incrementJSON.length;
           }
 
-          githubCommitStatus.textContent = 
+          githubCommitStatus.textContent =
             'Commit ' + totalFiles + ' files,' +
             ' +' + incrementChars.toLocaleString() + 'ch ' +
             totalChars.toLocaleString() + ' total...';
-          
+
           console.log('changeFiles: ', changeFiles);
 
           const { totalKnownDids, newDids } = getTotals();
@@ -175,55 +141,26 @@ async function coldskyDIDs() {
       })();
     }
 
-    /**
-     * @param {BucketData} bucket
-     * @param {HTMLElement} bucketElement
-     * @param {number=} newDidCount
-     */
-    async function updateBucketElement(bucket, bucketElement, newDidCount) {
-      let className;
-      if (isPromise(bucket.originalShortDIDs)) {
-        className = bucket.bucketFetchError ? 'matrix-element error-bucket' :
-          (
-            bucket.randomAlt ? 'matrix-element loading loading-alt' : 'matrix-element loading'
-          );
-      } else {
-        if (bucket.newShortDIDs?.size) className = (newDidCount ? 'matrix-element loaded new-dids fresh' : 'matrix-element loaded new-dids');
-        else className = 'matrix-element loaded';
-      }
+    function updateTitles() {
+      knownDidsTitleNumberElement.textContent =
+        pumpingState.knownAccounts.toLocaleString();
 
-      if (bucketElement.className !== className) bucketElement.className = className;
-    }
+      newDidsTitleNumberElement.textContent =
+        pumpingState.newAccounts.toLocaleString();
 
-    function updateTitlesWithError() {
-      updateTitlesWithTotal(true)
-    }
+      totalDidsTitleNumberElement.textContent =
+        (pumpingState.knownAccounts + pumpingState.newAccounts).toLocaleString();
 
-    function getTotals() {
-      let totalKnownDids = 0;
-      let newDids = 0;
-      for (const twoLetterKey in bucketsAndElements) {
-        const { bucket } = bucketsAndElements[twoLetterKey];
-        if (!isPromise(bucket.originalShortDIDs)) {
-          totalKnownDids += bucket.originalShortDIDs.size;
-          newDids += bucket.newShortDIDs?.size || 0;
-        }
-      }
+      const reflectCursorText =
+        pumpingState.cursors.lastSuccess && pumpingState.cursors.lastSuccess.toLocaleString()
+        || reflectCursor;
 
-      return { totalKnownDids, newDids };
-    }
+      newDidsTitleExtraElement.textContent =
+        pumpingState.pullError ?
+          'cursor: ' + reflectCursorText + ' (' + pumpingState.pullError.tries + ' errors)' :
+          'cursor: ' + reflectCursorText;
 
-    function updateTitlesWithTotal(hasError) {
-      const { totalKnownDids, newDids } = getTotals();
-
-      knownDidsTitleNumberElement.textContent = totalKnownDids.toLocaleString();
-      newDidsTitleNumberElement.textContent = newDids.toLocaleString();
-      totalDidsTitleNumberElement.textContent = (totalKnownDids + newDids).toLocaleString();
-
-      const reflectCursorText = Number.isFinite(Number(reflectCursor)) ? Number(reflectCursor).toLocaleString() : reflectCursor;
-      newDidsTitleExtraElement.textContent = hasError ? 'cursor: ' + reflectCursorText + ' (with errors)' : 'cursor: ' + reflectCursorText;
-
-      if (newDids) {
+      if (pumpingState.allAccountsLoaded && pumpingState.newAccounts) {
         // and all buckets are populated
         if (githubCommitButton.disabled) {
           githubCommitButton.disabled = false;
@@ -232,119 +169,313 @@ async function coldskyDIDs() {
 
         githubCommitButton.onclick = tryCommit;
       }
+
     }
 
-    async function loadAndApplyNewAccounts() {
-      for await (const entry of loadShortDIDs(cursors.listRepos.cursor)) {
-        await pauseUpdatesPromise;
-        if (entry.error) {
-          updateTitlesWithError();
+    async function pumpUpdates() {
+      while (pumpingState.nextUpdate) {
+        const changes = await pumpingState.nextUpdate;
+        renderedBuckets(changes);
+        updateTitles();
+      }
+    }
+
+    /** @param {HTMLElement} matrixElement */
+    function renderBuckets(matrixElement) {
+      BucketRenderer.prototype.update = updateBucket;
+
+      /** @type {{ [twoLetterKey: string]: BucketRenderer }} */
+      const rendererByTwoLetterKey = {};
+      new BucketRenderer('web', 1, letters.length);
+
+      for (let iFirstLetter = 0; iFirstLetter < letters.length; iFirstLetter++) {
+        for (let iSecondLetter = 0; iSecondLetter < letters.length; iSecondLetter++) {
+          const twoLetterKey = letters[iFirstLetter] + letters[iSecondLetter];
+          new BucketRenderer(twoLetterKey, iFirstLetter + 2, iSecondLetter + 1);
+        }
+      }
+
+      for (const renderer of Object.values(rendererByTwoLetterKey)) {
+        matrixElement.appendChild(renderer.element);
+      }
+
+      return updateBuckets;
+
+      /** @param {{ has(twoLetterKey: string): boolean  }} [recentBuckets] */
+      function updateBuckets(recentBuckets) {
+        for (const renderer of Object.values(rendererByTwoLetterKey)) {
+          const recent = !!recentBuckets?.has(renderer.bucket.twoLetterKey);
+          renderer.update(recent);
+        }
+      }
+
+      /**
+       * @param {string} twoLetterKey
+       * @param {number} column
+       * @param {number} row
+       */
+      function BucketRenderer(twoLetterKey, column, row) {
+        this.bucket = pumpingState.buckets[twoLetterKey];
+        this.element = createElementForBucket(column, row);
+        if (this.bucket.randomAlt) this.element.classList.add('random-alt');
+        this.errorClass = false;
+        this.loadedClass = false;
+        this.hasUpdatesClass = false;
+        this.hasRecentUpdatesClass = false;
+        this.update(false);
+        rendererByTwoLetterKey[twoLetterKey] = this;
+      }
+
+      /**
+       * @this {BucketRenderer}
+       * @param {boolean} recentUpdates
+       */
+      function updateBucket(recentUpdates) {
+        const errorClass = !!this.bucket.error;
+        const loadedClass = !isPromise(this.bucket.originalShortDIDs);
+        const hasUpdatesClass = !!this.bucket.newShortDIDs?.size;
+
+        if (errorClass !== this.errorClass) this.element.classList.toggle('error-bucket', errorClass);
+        if (loadedClass !== this.loadedClass) this.element.classList.toggle('loaded', loadedClass);
+        if (hasUpdatesClass !== this.hasUpdatesClass) this.element.classList.toggle('new-dids', hasUpdatesClass);
+        if (recentUpdates !== this.hasRecentUpdatesClass) this.element.classList.toggle('fresh', recentUpdates);
+      }
+
+      /**
+       * @param {number} column
+       * @param {number} row
+       */
+      function createElementForBucket(column, row) {
+        const bucketElement = document.createElement('div');
+        bucketElement.className = 'matrix-element';
+        bucketElement.style.gridColumn = String(column);
+        bucketElement.style.gridRow = String(row);
+        return bucketElement;
+      }
+    }
+  }
+
+  function loadBucketsAndPullNewDIDs() {
+
+    /** @param {{  has(twoLetterKey: string): boolean }} [buckets] */
+    let nextUpdateResolve = (buckets) => { };
+    const result = {
+      knownAccounts: 0,
+      newAccounts: 0,
+      /** @type {BucketData[]} */
+      updatedBuckets: [],
+      cursors: {
+        json: /** @type {import('./cursors.json')} */({}),
+        /** @type {number | undefined} */
+        original: undefined,
+        /** @type {number | undefined} */
+        lastSuccess: undefined
+      },
+      /** @type {{ [twoLetterKey: string]: BucketData }} */
+      buckets: {},
+      /** @type {ErrorStats | undefined} */
+      pullError: undefined,
+      allAccountsLoaded: false,
+      allNewDIDsLoaded: false,
+      /** @type {Promise | undefined} */
+      pauseUpdatesPromise: undefined,
+      /** @type {Promise<{ has(twoLetterKey: string): boolean } | undefined> | undefined} */
+      nextUpdate: new Promise(resolve => nextUpdateResolve = resolve)
+    };
+
+    pumpNewDIDs();
+    initAllBuckets();
+
+    return result;
+
+    /** @param {{  has(twoLetterKey: string): boolean  }} [buckets] */
+    function triggerUpdate(buckets) {
+      const tick = nextUpdateResolve;
+      if (!result.allAccountsLoaded || !result.allNewDIDsLoaded)
+        result.nextUpdate = new Promise(resolve => nextUpdateResolve = resolve);
+
+      tick(buckets);
+    }
+
+    async function pumpNewDIDs() {
+      result.cursors.json = await fetchCursorsJSON();
+      result.cursors.original = Number(result.cursors.json.listRepos.cursor) || undefined;
+
+      /** @type {Set<string>} */
+      const triggerBuckets = new Set();
+      for await (const block of pullNewShortDIDs(result.cursors.original)) {
+        await result.pauseUpdatesPromise;
+
+        if (block.error) {
+          result.pullError = block.error;
+          triggerUpdate();
           continue;
         }
 
-        reflectCursor = entry.cursor;
-        const expandedBuckets = new Map();
+        result.cursors.lastSuccess = Number(block.cursor);
+        triggerBuckets.clear();
 
-        for (const shortDID of entry.shortDIDs) {
+        for (const shortDID of block.shortDIDs) {
           const twoLetterKey = getTwoLetterKey(shortDID);
-          const entry = bucketsAndElements[twoLetterKey];
-          if (entry.bucket.addNewShortDID(shortDID)) {
-            const expandedBucketCount = expandedBuckets.get(twoLetterKey);
-            if (!expandedBucketCount) expandedBuckets.set(twoLetterKey, 1);
-            else expandedBuckets.set(twoLetterKey, expandedBucketCount + 1);
+          const bucket = result.buckets[twoLetterKey];
+
+          if (!isPromise(bucket.originalShortDIDs)
+            && bucket.originalShortDIDs.has(shortDID))
+            continue;
+
+          const sizeBefore = bucket.newShortDIDs?.size || 0;
+          if (!bucket.newShortDIDs) bucket.newShortDIDs = new Set();
+          bucket.newShortDIDs.add(shortDID);
+          if (bucket.newShortDIDs.size > sizeBefore) {
+            if (!sizeBefore) result.updatedBuckets.push(bucket);
+
+            result.newAccounts++;
+            triggerBuckets.add(twoLetterKey);
           }
         }
 
-        for (const twoLetterKey of expandedBuckets.keys()) {
-          const entry = bucketsAndElements[twoLetterKey];
-          updateBucketElement(entry.bucket, entry.element, expandedBuckets.get(twoLetterKey));
+        if (triggerBuckets.size) {
+          triggerUpdate(triggerBuckets);
         }
-
-        for (const twoLetterKey in bucketsAndElements) {
-          const entry = bucketsAndElements[twoLetterKey];
-          if (expandedBuckets.has(twoLetterKey)) continue;
-          updateBucketElement(entry.bucket, entry.element);
-        }
-
-        updateTitlesWithTotal();
       }
 
-      statusBar.textContent = 'All accounts loaded.';
-    }
-  }
+      result.allAccountsLoaded = true;
+      triggerUpdate();
 
-  /** @param {HTMLElement} matrixElement */
-  function createBucketElements(matrixElement) {
-    /** @type {{ [twoLetterKey: string]: { bucket: BucketData, element: HTMLElement } }} */
-    const bucketsAndElements = {};
+      async function fetchCursorsJSON() {
+        const startDate = Date.now();
+        while (true) {
+          try {
+            /** @type {import('./cursors.json')} */
+            const cursorsJSON = await fetch('./cursors.json', { cache: 'no-cache' })
+              .then(x => x.json());
+            await pauseUpdatesPromise;
 
-    const webBucket = createBucket('web');
-    const webBucketElement = document.createElement('div');
-    webBucketElement.className = 'matrix-element';
-    webBucketElement.style.gridColumn = '1';
-    webBucketElement.style.gridRow = String(letters.length);
-    matrixElement.appendChild(webBucketElement);
+            return cursorsJSON;
+          } catch (fetchCursorError) {
+            let waitFor = Math.min(
+              45000,
+              Math.max(300, (Date.now() - startDate) / 3)
+            ) * (0.7 + Math.random() * 0.6);
+            let retryAt = Date.now() + waitFor;
 
-    bucketsAndElements['web'] = {
-      bucket: webBucket,
-      element: webBucketElement
-    };
+            await pauseUpdatesPromise;
+            waitFor = Math.max(0, retryAt - Date.now());
 
-    for (let iFirstLetter = 0; iFirstLetter < letters.length; iFirstLetter++) {
-      for (let iSecondLetter = 0; iSecondLetter < letters.length; iSecondLetter++) {
-        const twoLetterKey = letters[iFirstLetter] + letters[iSecondLetter];
-        const bucket = createBucket(twoLetterKey);
+            if (!result.pullError) {
+              result.pullError = {
+                current: fetchCursorError,
+                started: Date.now(),
+                tries: 1,
+                retryAt: Date.now() + waitFor
+              };
+            } else {
+              result.pullError.current = fetchCursorError;
+              result.pullError.tries++;
+              result.pullError.retryAt = Date.now() + waitFor;
+            }
 
-        const element = document.createElement('div');
-        element.className = bucket.randomAlt ? 'matrix-element matrix-element-alt' : 'matrix-element';
-        element.style.gridColumn = String(iFirstLetter + 2);
-        element.style.gridRow = String(iSecondLetter + 1);
-        matrixElement.appendChild(element);
-
-        bucketsAndElements[twoLetterKey] = {
-          bucket,
-          element
-        };
+            console.warn('./cursors.json: delay ', waitFor, 'ms ', fetchCursorError);
+            await new Promise(resolve => setTimeout(resolve, waitFor));
+          }
+        }
       }
     }
 
-    return bucketsAndElements;
+    function initAllBuckets() {
+      /** @type {Set<string>} */
+      const singleSet = new Set();
+      result.buckets['web'] = createBucket('web');
+      for (let iFirstLetter = 0; iFirstLetter < letters.length; iFirstLetter++) {
+        for (let iSecondLetter = 0; iSecondLetter < letters.length; iSecondLetter++) {
+          const twoLetterKey = letters[iFirstLetter] + letters[iSecondLetter];
+          result.buckets[twoLetterKey] = createBucket(twoLetterKey);
+        }
+      }
+
+      let outstandingBuckets = 0;
+      for (const twoLetterKey in result.buckets) {
+        const bucket = result.buckets[twoLetterKey];
+        if (isPromise(bucket.originalShortDIDs)) {
+          outstandingBuckets++;
+          bucket.originalShortDIDs.then(() => updateBucketFetched(bucket));
+        } else {
+          result.knownAccounts += bucket.originalShortDIDs.size;
+        }
+      }
+
+      /**
+       * @param {BucketData} bucket 
+       */
+      function updateBucketFetched(bucket) {
+        result.knownAccounts += /** @type {Set<string>} */(bucket.originalShortDIDs).size;
+        outstandingBuckets--;
+
+        if (!outstandingBuckets) result.allAccountsLoaded = true;
+
+        singleSet.clear();
+        singleSet.add(bucket.twoLetterKey);
+        triggerUpdate(singleSet);
+      }
+    }
+
   }
 
   /**
-   * @param {string} originalCursor
+   * @param {number | undefined} originalCursor
    */
-  async function* loadShortDIDs(originalCursor) {
+  async function* pullNewShortDIDs(originalCursor) {
     let cursor = originalCursor;
 
     let lastStart = Date.now();
     let fetchErrorStart;
+    let errorCount = 0;
 
-    /** @type {import('@atproto/api').BskyAgent} */
-    const atClient =
-      // @ts-ignore
-      new ColdskyAgent();
-
+    // first cycles always forced - because it was the last one last time
+    let forceCycles = 2;
     while (true) {
       try {
-        const resp = await atClient.com.atproto.sync.listRepos({ cursor, limit: 995 });
-        await pauseUpdatesPromise;
-        fetchErrorStart = undefined;
-        lastStart = Date.now();
+        const fetchForCursor = cursor;
+        const fetchURL =
+          'https://corsproxy.io/?' +
+          'https://bsky.network/xrpc/com.atproto.sync.listRepos?' +
+          'cursor=' + fetchForCursor + '&limit=995';
 
-        let canContinue = false;
-        if (resp?.data?.cursor) {
-          cursor = resp.data.cursor;
-          canContinue = true;
+        const resp = forceCycles ?
+          await fetch(fetchURL, { cache: 'reload' }) :
+          await fetch(fetchURL);
+
+        await pauseUpdatesPromise;
+
+        let data = await resp.json();
+        await pauseUpdatesPromise;
+
+        let canContinue = true;
+
+        if (!data.cursor) {
+          if (!forceCycles) {
+            forceCycles = 2;
+            // retry, on the same cursor too
+            continue;
+          }
+
+          // already in forceful mode, can as well give up
+          canContinue = false;
+        } else {
+          cursor = data.cursor;
         }
 
-        if (resp?.data?.repos?.length) {
+        fetchErrorStart = undefined;
+        errorCount = 0;
+        lastStart = Date.now();
+
+        if (data?.repos?.length) {
           /** @type {string[]} */
-          const shortDIDs = resp.data.repos.map(repo => shortenDID(repo.did));
+          const shortDIDs = data.repos.map(repo => shortenDID(repo.did));
           yield {
             shortDIDs,
             originalCursor,
-            cursor,
+            cursor: fetchForCursor, // return a cursor that has worked
             error: undefined
           };
         }
@@ -353,6 +484,7 @@ async function coldskyDIDs() {
       } catch (error) {
         if (!fetchErrorStart)
           fetchErrorStart = Date.now();
+        errorCount++;
 
         const waitFor = Math.min(
           45000,
@@ -364,10 +496,13 @@ async function coldskyDIDs() {
           shortDIDs: undefined,
           originalCursor,
           cursor,
-          /** @type {Error} */
-          error,
-          errorStart: fetchErrorStart,
-          retryAt: Date.now() + waitFor
+          /** @type {ErrorStats} */
+          error: {
+            current: error,
+            retryAt: Date.now() + waitFor,
+            tries: errorCount,
+            started: fetchErrorStart
+          }
         };
 
         await new Promise(resolve => setTimeout(resolve, waitFor));
@@ -382,9 +517,17 @@ async function coldskyDIDs() {
    *  originalShortDIDs: Promise<Set<string>> | Set<string>;
    *  originalJSONText: string | undefined;
    *  newShortDIDs: Set<string> | undefined;
-   *  bucketFetchError: Error | undefined;
-   *  addNewShortDID(shortDID: string): boolean;
+   *  error: ErrorStats | undefined;
    * }} BucketData
+   */
+
+  /**
+   * @typedef {{
+   *  current: Error | undefined,
+   *  tries: number,
+   *  started: number,
+   *  retryAt: number
+   * }} ErrorStats
    */
 
   /** @param {string} twoLetterKey */
@@ -396,8 +539,7 @@ async function coldskyDIDs() {
       originalShortDIDs: loadOriginalShortDIDs(),
       originalJSONText: undefined,
       newShortDIDs: undefined,
-      bucketFetchError: undefined,
-      addNewShortDID
+      error: undefined
     };
 
     return bucket;
@@ -412,7 +554,7 @@ async function coldskyDIDs() {
           const shardText = await fetch(shardURL).then(x => x.text());
           const shardData = JSON.parse(shardText);
           if (errorReported)
-            bucket.bucketFetchError = undefined;
+            bucket.error = undefined;
           bucket.originalShortDIDs = new Set(shardData);
           bucket.originalJSONText = shardText;
 
@@ -432,31 +574,28 @@ async function coldskyDIDs() {
 
           return bucket.originalShortDIDs;
         } catch (error) {
-          if (!errorReported) {
-            errorReported = true;
-            bucket.bucketFetchError = error;
-          }
-
           const waitFor = Math.min(
             30000,
             Math.max(300, (Date.now() - start) / 3)
           ) * (0.7 + Math.random() * 0.6);
-          console.warn('delay ', waitFor, 'ms ', error);
 
+          if (bucket.error) {
+            bucket.error.current = error;
+            bucket.error.retryAt = Date.now() + waitFor;
+            bucket.error.tries++;
+          } else {
+            bucket.error = {
+              current: error,
+              retryAt: Date.now() + waitFor,
+              started: Date.now(),
+              tries: 1
+            };
+          }
+
+          console.warn('delay ', waitFor, 'ms ', error);
           await new Promise(resolve => setTimeout(resolve, waitFor));
         }
       }
-    }
-
-    /** @param {string} shortDID */
-    function addNewShortDID(shortDID) {
-      if (!isPromise(bucket.originalShortDIDs) && bucket.originalShortDIDs.has(shortDID))
-        return false;
-      if (bucket.newShortDIDs && bucket.newShortDIDs.has(shortDID))
-        return false;
-      if (!bucket.newShortDIDs) bucket.newShortDIDs = new Set();
-      bucket.newShortDIDs.add(shortDID);
-      return true;
     }
   }
 
@@ -492,9 +631,48 @@ async function coldskyDIDs() {
     else return twoLetterKey[0] + '/' + twoLetterKey + '.json';
   }
 
+  /**
+ * @param {T} did
+ * @returns {T}
+ * @template {string | undefined | null} T
+ */
+  function shortenDID(did) {
+    return did && /** @type {T} */(did.replace(_shortenDID_Regex, '').toLowerCase() || undefined);
+  }
+
+  const _shortenDID_Regex = /^did\:plc\:/;
+
+
+  /**
+ * @param {any} x
+ * @returns {x is Promise<any>}
+ */
+  function isPromise(x) {
+    if (!x || typeof x !== 'object') return false;
+    else return typeof x.then === 'function';
+  }
+
+
   /** @param {string} url */
   function relativeURL(url) {
     return /http/i.test(location.protocol || '') ? url : 'https://dids.colds.ky/' + url;
   }
+
+
+  if (!window['Buffer']) {
+    window['Buffer'] = { from: btoa.bind(window) };
+  }
+
+  let pauseUpdatesPromise;
+
+  const letters = '234567abcdefghjiklmnopqrstuvwxyz';
+
+  const statusBar = /** @type {HTMLElement} */(document.querySelector('.status-content'));
+  const payload = /** @type {HTMLElement} */(document.querySelector('.payload'));
+  const githubAuthTokenInput = /** @type {HTMLInputElement} */(document.querySelector('.github-auth-token'));
+  const githubCommitButton = /** @type {HTMLButtonElement} */(document.querySelector('.github-commit'));
+  const githubCommitStatus = /** @type {HTMLElement} */(document.querySelector('.github-commit-status'));
+
+  await load();
 
 } coldskyDIDs();
