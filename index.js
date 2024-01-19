@@ -455,13 +455,17 @@ async function coldskyDIDs() {
 
     // first cycles always forced - because it was the last one last time
     let forceCycles = 2;
+    let lastFruitfulCursor = originalCursor;
+    /** @type {{ [cursor: string]: number }} */
+    let retriesFor = {};
     while (true) {
       try {
         const fetchForCursor = cursor;
         const fetchURL =
           'https://corsproxy.io/?' +
           'https://bsky.network/xrpc/com.atproto.sync.listRepos?' +
-          'cursor=' + fetchForCursor + '&limit=995';
+          'limit=995' +
+          (fetchForCursor ? '&cursor=' + fetchForCursor : '');
 
         const resp = forceCycles ?
           await fetch(fetchURL, { cache: 'reload' }) :
@@ -476,9 +480,12 @@ async function coldskyDIDs() {
 
         if (!data.cursor || !data.repos?.length) {
           if (!forceCycles) {
-            forceCycles = 2;
-            // retry, on the same cursor too
-            continue;
+            if ((retriesFor[String(fetchForCursor)] || 0) <= 4) {
+              forceCycles = 2;
+              retriesFor[String(fetchForCursor)] = (retriesFor[String(fetchForCursor)] || 0) + 1;
+              cursor = lastFruitfulCursor;
+              continue;
+            }
           }
 
           // already in forceful mode, can as well give up
