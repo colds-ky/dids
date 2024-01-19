@@ -309,6 +309,13 @@ async function coldskyDIDs() {
       if (!result.allAccountsLoaded || !result.allNewDIDsLoaded)
         result.nextUpdate = new Promise(resolve => nextUpdateResolve = resolve);
 
+      result.newAccounts = 0;
+      result.knownAccounts = 0;
+      for (const bucket of Object.values(result.buckets)) {
+        result.knownAccounts += isPromise(bucket.originalShortDIDs) ? 0 : bucket.originalShortDIDs.size;
+        result.newAccounts += bucket.newShortDIDs?.size || 0;
+      }
+
       tick(buckets);
     }
 
