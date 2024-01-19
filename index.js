@@ -235,10 +235,25 @@ async function coldskyDIDs() {
         const loadedClass = !isPromise(this.bucket.originalShortDIDs);
         const hasUpdatesClass = !!this.bucket.newShortDIDs?.size;
 
-        if (errorClass !== this.errorClass) this.element.classList.toggle('error-bucket', errorClass);
-        if (loadedClass !== this.loadedClass) this.element.classList.toggle('loaded', loadedClass);
-        if (hasUpdatesClass !== this.hasUpdatesClass) this.element.classList.toggle('new-dids', hasUpdatesClass);
-        if (recentUpdates !== this.hasRecentUpdatesClass) this.element.classList.toggle('fresh', recentUpdates);
+        if (errorClass !== this.errorClass) {
+          this.element.classList.toggle('error-bucket', errorClass);
+          this.errorClass = errorClass;
+        }
+
+        if (loadedClass !== this.loadedClass) {
+          this.element.classList.toggle('loaded', loadedClass);
+          this.loadedClass = loadedClass;
+        }
+
+        if (hasUpdatesClass !== this.hasUpdatesClass) {
+          this.element.classList.toggle('new-dids', hasUpdatesClass);
+          this.hasUpdatesClass = hasUpdatesClass;
+        }
+
+        if (recentUpdates !== this.hasRecentUpdatesClass) {
+          this.element.classList.toggle('fresh', recentUpdates);
+          this.hasRecentUpdatesClass = recentUpdates;
+        }
       }
 
       /**
