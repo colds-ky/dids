@@ -503,6 +503,7 @@ async function coldskyDIDs() {
         if (data?.repos?.length) {
           /** @type {string[]} */
           const shortDIDs = data.repos.map(repo => shortenDID(repo.did));
+          lastFruitfulCursor = fetchForCursor;
           yield {
             shortDIDs,
             originalCursor,
