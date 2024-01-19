@@ -362,7 +362,7 @@ async function coldskyDIDs() {
         while (true) {
           try {
             /** @type {import('./cursors.json')} */
-            const cursorsJSON = await fetch('./cursors.json', { cache: 'no-cache' })
+            const cursorsJSON = await fetch('./cursors.json', { cache: 'reload' })
               .then(x => x.json());
             await pauseUpdatesPromise;
 
@@ -467,7 +467,7 @@ async function coldskyDIDs() {
 
         let canContinue = true;
 
-        if (!data.cursor) {
+        if (!data.cursor || !data.repos?.length) {
           if (!forceCycles) {
             forceCycles = 2;
             // retry, on the same cursor too
@@ -479,6 +479,8 @@ async function coldskyDIDs() {
         } else {
           cursor = data.cursor;
         }
+
+        if (forceCycles) forceCycles--;
 
         fetchErrorStart = undefined;
         errorCount = 0;
