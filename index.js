@@ -55,7 +55,7 @@ async function coldskyDIDs() {
             JSON.stringify({
             ...cursors,
             listRepos: {
-              cursor: reflectCursor,
+              cursor: pumpingState.cursors.lastSuccess || reflectCursor,
               timestamp: new Date().toISOString(),
               client:
                 (navigator.platform ?
