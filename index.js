@@ -70,6 +70,7 @@ async function coldskyDIDs() {
             }
           }, null, 2));
 
+          statusBar.textContent = 'Preparing atomic commit...';
           githubCommitStatus.textContent = 'Updating files...';
 
           let totalFiles = 0;
@@ -103,6 +104,7 @@ async function coldskyDIDs() {
           }
 
           githubCommitStatus.textContent = 'Committing changes...';
+          statusBar.textContent = 'GitHub...';
 
           githubCommitStatus.textContent =
             'Commit ' + totalFiles + ' files,' +
@@ -125,6 +127,7 @@ async function coldskyDIDs() {
           completeLabel.textContent = 'Complete.';
           githubCommitStatus.appendChild(completeLabel);
           githubCommitStatus.textContent = 'Committed ' + commitMessage + '.';
+          statusBar.textContent = 'Saved changes.';
 
         } catch (error) {
           gitAuthPanel.classList.remove('github-commit-in-progress');
