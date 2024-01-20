@@ -88,6 +88,7 @@ async function coldskyDIDs() {
             const incrementJSON = packDidsJson([...bucket.newShortDIDs], ',\n', '\n]\n');
             const path = getShardBucketPath(twoLetterKey);
 
+            githubCommitStatus.textContent = 'Updating files: ' + twoLetterKey + ' (' + updatedFiles.length + ')...';
             await prepare.put(path, lead + incrementJSON);
 
             updatedFiles.push(path);
@@ -100,6 +101,8 @@ async function coldskyDIDs() {
             totalFiles++;
             totalChars += lead.length + incrementJSON.length;
           }
+
+          githubCommitStatus.textContent = 'Committing changes...';
 
           githubCommitStatus.textContent =
             'Commit ' + totalFiles + ' files,' +
@@ -114,6 +117,8 @@ async function coldskyDIDs() {
             ' to ' + (pumpingState.knownAccounts + pumpingState.newAccounts).toLocaleString() + ' dids';
 
           await prepare.commit(commitMessage);
+
+          githubCommitStatus.textContent = 'OK.';
 
           const completeLabel = document.createElement('div');
           completeLabel.className = 'complete-label';
@@ -190,10 +195,10 @@ async function coldskyDIDs() {
         }
       }
 
-      updateBucket.buckets = {};
+      updateBuckets.buckets = {};
       for (const renderer of Object.values(rendererByTwoLetterKey)) {
         matrixElement.appendChild(renderer.element);
-        updateBucket.buckets[renderer.bucket.twoLetterKey] = renderer.bucket;
+        updateBuckets.buckets[renderer.bucket.twoLetterKey] = renderer.bucket;
       }
 
       return /** @type {typeof updateBuckets & { buckets: { [twoLetterKey: string]: BucketData }}} */(
