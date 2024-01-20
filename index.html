@@ -166,7 +166,7 @@
     .payload .matrix .matrix-element {
       border-radius: 2vw;
       margin: 1px;
-      transition: background-color 1.5s ease-in-out;
+      transition: background-color 1.5s ease-in-out, box-shadow 0.3s ease-in-out;
     }
     /* .payload .matrix .matrix-element.random-alt {
       background: #00ccff53;
@@ -194,7 +194,8 @@
     }
 
     .payload .matrix .matrix-element.committing {
-      background: rgb(136, 217, 255);
+      background: rgb(136, 217, 255) !important;
+      box-shadow: 0 0 3px 2px cyan;
     }
 
     .git-auth-panel button.github-commit {
