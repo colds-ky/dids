@@ -482,7 +482,8 @@ async function coldskyDIDs() {
           'https://corsproxy.io/?' +
           'https://bsky.network/xrpc/com.atproto.sync.listRepos?' +
           'limit=' + (forceCycles ? '995' : '998') +
-          (fetchForCursor ? '&cursor=' + fetchForCursor : '');
+          (fetchForCursor ? '&cursor=' + fetchForCursor : '') +
+          (!forceCycles ? '' : '&t=' + Date.now());
 
         const resp = forceCycles ?
           await fetch(fetchURL, { cache: 'reload' }) :
