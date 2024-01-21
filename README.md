@@ -30,14 +30,14 @@ Did the temperature just dropped a notch?
 
 DID is fixed account identifier in BlueSky.
 
-This repository stores a full list of these identifiers, plus some maintenance scripts. That's as Coldsky as it can get.
+This repository stores a full list of these identifiers, plus some maintenance scripts. That's as Coldsky as it gets.
 
 A DID is a long identifier in format of **did:plc:abcnm2knoyktubnmeitg6pdd** (some exceptions possible, but practically never used).
 At the moment there are 3,091,797 of them stored here.
 
 In order to simplify the storage in a git repository, the whole set is broken into 'shards' or 'buckets',
 simply by grouping all dids with the same first 2 characters after **did:plc:** prefix.
-Have a look at a shard [starting with **did:plc:ne**](n/ne.json) for example.
+Have a look at a shard [starting with '**did:plc:ne...**'](n/ne.json) for example.
 
 ## Maintenance scripts
 
