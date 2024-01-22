@@ -5,7 +5,7 @@ Coldsky is a project of turning social media (BlueSky, atproto) into a library-l
 
 ## Why cold?
 
-Traditionally you'd think about social media as a dynamic, shifty place full where interactions and posts fly left and right every minute.
+Traditionally you'd think about social media as a dynamic, shifty place where interactions and posts fly left and right every minute.
 
 This dynamic nature is what locks you into existing social media providers: they are the power grid in which these bundles of light travel.
 This soup has to be hot for the life to flourish.
