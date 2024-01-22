@@ -27,6 +27,18 @@ function coldskyDIDs() {
 
     await pumpUpdates();
 
+    async function showReadme() {
+      const readmeHost = /** @type {HTMLElement} */(document.querySelector('#readme-host'));
+      const readmePeekButton = /** @type {HTMLElement} */(document.querySelector('.readme-peek-button'));
+
+      const readmeText = await loadReadme();
+      const readmeContentElement = document.createElement('div');
+      readmeContentElement.textContent = readmeText;
+
+      readmeHost.appendChild(readmeContentElement);
+      readmeHost.style.display = 'block';
+    }
+
     function tryCommit() {
       pauseUpdatesPromise = (async () => {
         githubCommitStatus.textContent = '';

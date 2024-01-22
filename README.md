@@ -70,4 +70,4 @@ All that multi-billion dollar knowledge of hot-soup social media, but commoditis
 Neato?
 
 Get in touch [@colds.ky](https://bsky.app/profile/colds.ky).
-<!-- `) // -->
+<!-- `)] // -->

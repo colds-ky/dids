@@ -54,7 +54,39 @@
       grid-row: 4;
     }
 
-    @media (max-width: 600px) {
+    #readme-host {
+      display: none;
+      position: absolute;
+      top: 100%; left: 0;
+      width: 100%;
+      min-height: 50%;
+    }
+
+    #readme-host .readme-top-anchor {
+      position: absolute;
+    }
+
+    #readme-host .readme-peek-button {
+      position: absolute;
+      top: auto; left: 0;
+      right: auto; bottom: 0;
+      color: #e28b89;
+      font-family: monospace;
+      text-shadow: 0 1px 2px black, 1px 0 2px black, 0 -1px 2px black, -1px 0 2px black;
+      padding: 0.2em;
+      white-space: nowrap;
+    }
+
+    #readme-host .readme-peek-button:before {
+      content: '\25BC';
+      padding-right: 0.3em;
+      color: #c85e5b;
+      text-shadow: 0 1px 3px #00000066, 1px 0 3px #00000066, 0 -1px 3px #00000066, -1px 0 3px #00000066;
+      position: relative;
+      top: 0.05em;
+    }
+
+    @media (max-aspect-ratio: 1/1.7) {
       body {
         font-size: 4vw;
       }
@@ -71,6 +103,24 @@
         grid-column: auto;
         grid-row: auto;
       }
+
+      #readme-host {
+        top: 0; left: 100%;
+        width: 90%;
+        min-height: 100%;
+        background: linear-gradient(to right, transparent -1em, #250000e0 1em, #250000e0);
+        padding-top: 2.7em;
+      }
+
+      #readme-host .readme-peek-button {
+        top: 0; left: auto;
+        right: 0; bottom: auto;
+      }
+
+      #readme-host .readme-peek-button:before {
+        content: '\25B6';
+      }
+
     }
 
     h1.title {
@@ -325,6 +375,13 @@
       <span class="status-content">Processing dependencies...</span>
     </div>
 
+  </div>
+
+  <div id="readme-host">
+    <div class="readme-top-anchor">
+      <div class="readme-peek-button">
+        Doc<span class="readme-peek-button-trail">s</span></span></div>
+      </div>
   </div>
 
   <script src="index.js"></script>
