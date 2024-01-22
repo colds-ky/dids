@@ -1,6 +1,6 @@
 // @ts-check
 
-async function coldskyDIDs() {
+function coldskyDIDs() {
 
   async function load() {
     statusBar.textContent = 'Detecting cursors...';
@@ -891,6 +891,16 @@ async function coldskyDIDs() {
   const githubCommitButton = /** @type {HTMLButtonElement} */(document.querySelector('.github-commit'));
   const githubCommitStatus = /** @type {HTMLElement} */(document.querySelector('.github-commit-status'));
 
-  await load();
+  const loadReadme = new Promise(resolve => {
+    /** @param {string} txt */
+    window.md = function (txt) {
+      const posHash = txt.indexOf('#');
+      const posComment = txt.lastIndexOf('<' + '!');
+      const stripped = txt.slice(posHash + 1, posComment);
+      resolve(stripped);
+    };
+  });
+
+  load();
 
 } coldskyDIDs();

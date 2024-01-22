@@ -1,3 +1,4 @@
+![md(`](air-line-icon.jpg)
 # DIDs - static storage
 
 Coldsky is a project of turning social media (BlueSky, atproto) into a library-like cold storage of information.
@@ -69,3 +70,4 @@ All that multi-billion dollar knowledge of hot-soup social media, but commoditis
 Neato?
 
 Get in touch [@colds.ky](https://bsky.app/profile/colds.ky).
+<!-- `) // -->
