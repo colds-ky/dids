@@ -22,18 +22,55 @@
       font-size: 2vw
     }
 
-    @media (max-width: 600px) {
-      body {
-        font-size: 4vw;
-      }
-    }
-
     .div-inner {
       width: 100%;
       height: 100%;
       display:grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1.2fr;
       grid-template-rows: auto auto 1fr auto;
+    }
+
+    .div-inner .title {
+      grid-column: 1;
+      grid-row: 1;
+      white-space: nowrap;
+    }
+
+    .div-inner .subtitle {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .div-inner .payload {
+      grid-column: 2;
+      grid-row-start: 1;
+      grid-row-end: 4;
+      align-self: start;
+    }
+
+    .div-inner .status {
+      grid-column-start: 1;
+      grid-column-end: 3;
+      grid-row: 4;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        font-size: 4vw;
+      }
+
+      .div-inner {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto 1fr auto;
+      }
+
+      .div-inner .title,
+      .div-inner .subtitle,
+      .div-inner .payload,
+      .div-inner .status  {
+        grid-column: auto;
+        grid-row: auto;
+      }
     }
 
     h1.title {
@@ -132,12 +169,6 @@
       text-align: right;
     }
 
-    .payload .git-auth-panel {
-      grid-row: 4;
-      grid-column: 1 /3;
-      padding-left: 1.5em;
-    }
-
     .payload h3.mini-title {
       margin: 0;
       font-family: monospace;
@@ -202,6 +233,10 @@
     .payload .matrix .matrix-element.committing {
       background: rgb(136, 217, 255) !important;
       box-shadow: 0 0 3px 2px cyan;
+    }
+
+    .git-auth-panel {
+      padding-left: 1.5em;
     }
 
     .git-auth-panel button.github-commit {
@@ -274,14 +309,16 @@
         <div class="mini-title-label total-dids-title-label">total</div>
       </div>
 
-      <div class="git-auth-panel">
-        <button class="github-commit" disabled>Commit changes</button>
-        <br>
-        <input type="text" class="github-auth-token" name="github-auth-token" autocomplete="on" id="github-auth-token" placeholder="Github auth token">
-        <div class="github-commit-status"></div>
-      </div>
+    </div>
 
-    </div>    
+    <div class="git-auth-panel">
+      <button class="github-commit" disabled>Commit changes</button>
+      <br>
+      <input type="text" class="github-auth-token" name="github-auth-token" autocomplete="on" id="github-auth-token"
+        placeholder="Github auth token">
+      <div class="github-commit-status"></div>
+    </div>
+
 
     <div class="status">
       <a class=coldsky-status-link href="https://bsky.app/profile/colds.ky">Cold Sky project by @Oyin.bo</a>
