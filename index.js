@@ -25,6 +25,8 @@ function coldskyDIDs() {
     const pumpingState = loadBucketsAndPullNewDIDs();
     const renderedBuckets = renderBuckets(matrixElement);
 
+    showReadme();
+
     await pumpUpdates();
 
     async function showReadme() {
