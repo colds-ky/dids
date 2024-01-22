@@ -40,6 +40,13 @@ function coldskyDIDs() {
 
       readmeHost.appendChild(readmeContentElement);
       readmeHost.style.display = 'block';
+      readmePeekButton.onclick = () => {
+        readmeContentElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+          inline: 'start'
+        });
+      };
     }
 
     function tryCommit() {
