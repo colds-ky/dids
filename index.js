@@ -35,7 +35,7 @@ function coldskyDIDs() {
 
       const readmeText = await loadReadme;
       const readmeContentElement = document.createElement('div');
-      readmeContentElement.textContent = readmeText;
+      readmeContentElement.innerHTML = marked.market(readmeText);
 
       readmeHost.appendChild(readmeContentElement);
       readmeHost.style.display = 'block';
