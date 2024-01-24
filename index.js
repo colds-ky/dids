@@ -4,14 +4,7 @@ function coldskyDIDs() {
 
   async function load() {
     statusBar.textContent = 'Restoring auth...';
-    try {
-      var cacheAuth = localStorage.getItem('github-auth-token');
-      if (cacheAuth) {
-        githubAuthTokenInput.textContent = '\ud83d\udd11';
-      }
-    } catch (error) {
-      console.warn('Cannot access localStorage for auth token ', error);
-    }
+    const auth = initAuth();
 
     statusBar.textContent = 'Detecting cursors...';
 
@@ -67,13 +60,7 @@ function coldskyDIDs() {
           githubCommitButton.disabled = true;
           gitAuthPanel.classList.add('github-commit-in-progress');
 
-          const authToken =
-            cacheAuth && githubAuthTokenInput.textContent === '\ud83d\udd11' ? cacheAuth :
-              githubAuthTokenInput.value;
-
-          if (!authToken) {
-            throw new Error('Please provide a GitHub personal access token');
-          }
+          const authToken = auth.startCommit();
 
           const prepare = await webcommit({
             auth: authToken,
@@ -168,8 +155,10 @@ function coldskyDIDs() {
           githubCommitStatus.appendChild(completeLabel);
           githubCommitStatus.textContent = 'Committed ' + commitMessage + '.';
           statusBar.textContent = 'Saved changes.';
+          auth.commitSucceeded();
 
         } catch (error) {
+          auth.commitFailed();
           gitAuthPanel.classList.remove('github-commit-in-progress');
           const errorLabel = document.createElement('div');
           errorLabel.className = 'error-label';
@@ -324,6 +313,52 @@ function coldskyDIDs() {
         bucketElement.style.gridRow = String(row);
         return bucketElement;
       }
+    }
+  }
+
+  function initAuth() {
+    const AUTH_STORAGE_KEY = 'github-auth-cached';
+    const KEY_EMOJI = '\ud83d\udd11';
+
+    let committingAuth;
+
+    try {
+      if (localStorage.getItem(AUTH_STORAGE_KEY))
+        githubAuthTokenInput.value = KEY_EMOJI;
+    } catch (localStorageError) {
+      console.warn('Cannot retrieve ' + AUTH_STORAGE_KEY + ' from localStorage ', localStorageError);
+    }
+
+    return {
+      startCommit,
+      commitSucceeded,
+      commitFailed
+    };
+
+    function startCommit() {
+      committingAuth =
+        (githubAuthTokenInput.value === KEY_EMOJI ?
+          localStorage.getItem(AUTH_STORAGE_KEY) : '') ||
+        githubAuthTokenInput.value;
+
+      if (!committingAuth) throw new Error('AUTH is not provided.');
+      githubAuthTokenInput.disabled = true;
+      return committingAuth;
+    }
+
+    function commitSucceeded() {
+      githubAuthTokenInput.disabled = false;
+      if (githubAuthTokenInput.value !== KEY_EMOJI) {
+        try {
+          localStorage.setItem(AUTH_STORAGE_KEY, committingAuth);
+        } catch (localStorageError) {
+          console.warn('Cannot store ' + AUTH_STORAGE_KEY + ' to localStorage ', localStorageError);
+        }
+      }
+    }
+
+    function commitFailed() {
+      githubAuthTokenInput.disabled = false;
     }
   }
 
