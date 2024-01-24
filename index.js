@@ -3,6 +3,16 @@
 function coldskyDIDs() {
 
   async function load() {
+    statusBar.textContent = 'Restoring auth...';
+    try {
+      var cacheAuth = localStorage.getItem('github-auth-token');
+      if (cacheAuth) {
+        githubAuthTokenInput.textContent = '\ud83d\udd11';
+      }
+    } catch (error) {
+      console.warn('Cannot access localStorage for auth token ', error);
+    }
+
     statusBar.textContent = 'Detecting cursors...';
 
     /** @type {import('./cursors.json')} */
@@ -57,7 +67,10 @@ function coldskyDIDs() {
           githubCommitButton.disabled = true;
           gitAuthPanel.classList.add('github-commit-in-progress');
 
-          const authToken = githubAuthTokenInput.value;
+          const authToken =
+            cacheAuth && githubAuthTokenInput.textContent === '\ud83d\udd11' ? cacheAuth :
+              githubAuthTokenInput.value;
+
           if (!authToken) {
             throw new Error('Please provide a GitHub personal access token');
           }
@@ -69,6 +82,11 @@ function coldskyDIDs() {
             branch: 'main'
           });
           console.log('commit: ', prepare);
+          try {
+            localStorage.setItem('github-auth-token', authToken);
+          } catch (error) {
+            console.warn('Cannot store auth in local storage');
+          }
 
           githubCommitStatus.textContent = 'Preparing summary...';
 
