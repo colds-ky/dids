@@ -115,18 +115,19 @@ function coldskyDIDs() {
           let totalChars = 0;
           const updatedFiles = [];
           const singleSet = new Set();
-          for (const twoLetterKey in renderedBuckets.buckets) {
+
+          /** @param {string} twoLetterKey */
+          const commitBucket = async twoLetterKey => {
             const bucket = renderedBuckets.buckets[twoLetterKey];
             if (!bucket.originalJSONText || !bucket.newShortDIDs?.size) {
               console.log('JSON text is not retrieved: ' + twoLetterKey);
-              continue;
+              return;
             }
 
             const lead = bucket.originalJSONText.replace(/\s*\]\s*$/, '');
             const incrementJSON = packDidsJson([...bucket.newShortDIDs], ',\n', '\n]\n');
             const path = getShardBucketPath(twoLetterKey);
 
-            githubCommitStatus.textContent = 'Updating files: ' + twoLetterKey + ' (' + updatedFiles.length + ')...';
             await prepare.put(path, lead + incrementJSON);
 
             updatedFiles.push(path);
@@ -138,6 +139,21 @@ function coldskyDIDs() {
             incrementChars += incrementJSON.length;
             totalFiles++;
             totalChars += lead.length + incrementJSON.length;
+          };
+
+          /** @type {string[][]} */
+          const parallelSets = [];
+          const PARALLEL_SET_SIZE = 4;
+          for (const twoLetterKey in renderedBuckets.buckets) {
+            if (parallelSets.length && parallelSets[parallelSets.length - 1].length < PARALLEL_SET_SIZE)
+              parallelSets[parallelSets.length - 1].push(twoLetterKey);
+            else
+              parallelSets.push([twoLetterKey]);
+          }
+
+          for (const set of parallelSets) {
+            githubCommitStatus.textContent = 'Updating files: ' + set.join(',') + ' (' + updatedFiles.length + ')...';
+            await Promise.all(set.map(commitBucket));
           }
 
           githubCommitStatus.textContent = 'Committing changes...';
@@ -159,11 +175,12 @@ function coldskyDIDs() {
 
           githubCommitStatus.textContent = 'OK.';
 
+
+          githubCommitStatus.textContent = 'Committed ' + commitMessage + '.';
           const completeLabel = document.createElement('div');
           completeLabel.className = 'complete-label';
-          completeLabel.textContent = 'Complete.';
+          completeLabel.textContent = ' \u2714 Done.';
           githubCommitStatus.appendChild(completeLabel);
-          githubCommitStatus.textContent = 'Committed ' + commitMessage + '.';
           statusBar.textContent = 'Saved changes.';
           auth.commitSucceeded();
 
