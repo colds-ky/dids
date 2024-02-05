@@ -141,6 +141,11 @@ function coldskyDIDs() {
           const parallelSets = [];
           const PARALLEL_SET_SIZE = 4;
           for (const twoLetterKey in renderedBuckets.buckets) {
+            const bucket = renderedBuckets.buckets[twoLetterKey];
+            if (!bucket.originalJSONText || !bucket.newShortDIDs?.size) {
+              continue;
+            }
+
             if (parallelSets.length && parallelSets[parallelSets.length - 1].length < PARALLEL_SET_SIZE)
               parallelSets[parallelSets.length - 1].push(twoLetterKey);
             else
