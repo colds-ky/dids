@@ -9,7 +9,7 @@ function coldskyDIDs() {
     statusBar.textContent = 'Detecting cursors...';
 
     /** @type {import('./cursors.json')} */
-    const cursors = await retryFetch(relativeURL('cursors.json')).then(x => x.json());
+    const cursors = await fetch(relativeURL('cursors.json')).then(x => x.json());
     let reflectCursor = cursors.listRepos.cursor;
 
     statusBar.textContent = 'Hydrating...';
@@ -462,7 +462,7 @@ function coldskyDIDs() {
         while (true) {
           try {
             /** @type {import('./cursors.json')} */
-            const cursorsJSON = await retryFetch('./cursors.json', { cache: 'reload' })
+            const cursorsJSON = await fetch('./cursors.json', { cache: 'reload' })
               .then(x => x.json());
             await pauseUpdatesPromise;
 
@@ -555,14 +555,15 @@ function coldskyDIDs() {
       try {
         const fetchForCursor = cursor;
         const fetchURL =
+          'https://corsproxy.io/?' +
           'https://bsky.network/xrpc/com.atproto.sync.listRepos?' +
           'limit=' + (forceCycles ? '995' : '998') +
           (fetchForCursor ? '&cursor=' + fetchForCursor : '') +
           (!forceCycles ? '' : '&t=' + Date.now());
 
         const resp = forceCycles ?
-          await retryFetch(fetchURL, { cache: 'reload' }) :
-          await retryFetch(fetchURL);
+          await fetch(fetchURL, { cache: 'reload' }) :
+          await fetch(fetchURL);
 
         await pauseUpdatesPromise;
 
@@ -671,7 +672,7 @@ function coldskyDIDs() {
       while (true) {
         try {
           const shardURL = relativeURL(getShardBucketPath(twoLetterKey));
-          const shardText = await retryFetch(shardURL).then(x => x.text());
+          const shardText = await fetch(shardURL).then(x => x.text());
           const shardData = JSON.parse(shardText);
           if (errorReported)
             bucket.error = undefined;
