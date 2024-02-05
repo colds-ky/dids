@@ -978,7 +978,7 @@ function coldskyDIDs() {
         const re = useCors ? await fetchWithCors(req, init) : await fetch(req, init);
 
         if (re.status >= 200 && re.status < 400 ||
-          re.status === 404) { // success or 404 is a sign of request having been processed
+          (re.status >= 401 && re.status <= 404)) { // success, auth error or 404 is a sign of request having been processed
           if (!useCors) corsproxyMightBeNeeded = false;
           return re;
         }
