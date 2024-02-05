@@ -67,7 +67,7 @@ function coldskyDIDs() {
             owner: 'colds-ky',
             repo: 'dids',
             branch: 'main',
-            fetch: (req, init) => retryFetch(req, { ...integrity, corsproxy: false })
+            fetch: (req, init) => retryFetch(req, { ...init, corsproxy: false })
           });
           console.log('commit: ', prepare);
           try {
