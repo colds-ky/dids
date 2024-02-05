@@ -956,7 +956,7 @@ function coldskyDIDs() {
  * @param {Parameters<typeof fetch>[1] & { onretry?: ({}: RetryArgs) => void, corsproxy?: boolean }} [init]
  * @returns {ReturnType<typeof fetch>}
  */
-  export async function retryFetch(req, init, ...rest) {
+  async function retryFetch(req, init, ...rest) {
     const started = Date.now();
     let tryCount = 0;
     while (true) {
