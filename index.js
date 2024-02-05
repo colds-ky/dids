@@ -62,12 +62,21 @@ function coldskyDIDs() {
 
           const authToken = auth.startCommit();
 
+          let firstFetch = true;
           const prepare = await webcommit({
             auth: authToken,
             owner: 'colds-ky',
             repo: 'dids',
             branch: 'main',
-            fetch: (req, init) => retryFetch(req, { ...init, corsproxy: false })
+            fetch: (req, init) => {
+              if (firstFetch) {
+                // first fetch needs to succeed normally: no sense retrying on authentication errors
+                firstFetch = false;
+                return fetch(req, init);
+              }
+
+              return retryFetch(req, { ...init, corsproxy: false });
+            }
           });
           console.log('commit: ', prepare);
           try {
