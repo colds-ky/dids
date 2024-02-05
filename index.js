@@ -9,7 +9,7 @@ function coldskyDIDs() {
     statusBar.textContent = 'Detecting cursors...';
 
     /** @type {import('./cursors.json')} */
-    const cursors = await fetch(relativeURL('cursors.json')).then(x => x.json());
+    const cursors = await retryFetch(relativeURL('cursors.json')).then(x => x.json());
     let reflectCursor = cursors.listRepos.cursor;
 
     statusBar.textContent = 'Hydrating...';
@@ -66,7 +66,8 @@ function coldskyDIDs() {
             auth: authToken,
             owner: 'colds-ky',
             repo: 'dids',
-            branch: 'main'
+            branch: 'main',
+            fetch: (req, init) => retryFetch(req, { ...integrity, corsproxy: false })
           });
           console.log('commit: ', prepare);
           try {
@@ -461,7 +462,7 @@ function coldskyDIDs() {
         while (true) {
           try {
             /** @type {import('./cursors.json')} */
-            const cursorsJSON = await fetch('./cursors.json', { cache: 'reload' })
+            const cursorsJSON = await retryFetch('./cursors.json', { cache: 'reload' })
               .then(x => x.json());
             await pauseUpdatesPromise;
 
@@ -554,15 +555,14 @@ function coldskyDIDs() {
       try {
         const fetchForCursor = cursor;
         const fetchURL =
-          'https://corsproxy.io/?' +
           'https://bsky.network/xrpc/com.atproto.sync.listRepos?' +
           'limit=' + (forceCycles ? '995' : '998') +
           (fetchForCursor ? '&cursor=' + fetchForCursor : '') +
           (!forceCycles ? '' : '&t=' + Date.now());
 
         const resp = forceCycles ?
-          await fetch(fetchURL, { cache: 'reload' }) :
-          await fetch(fetchURL);
+          await retryFetch(fetchURL, { cache: 'reload' }) :
+          await retryFetch(fetchURL);
 
         await pauseUpdatesPromise;
 
@@ -671,7 +671,7 @@ function coldskyDIDs() {
       while (true) {
         try {
           const shardURL = relativeURL(getShardBucketPath(twoLetterKey));
-          const shardText = await fetch(shardURL).then(x => x.text());
+          const shardText = await retryFetch(shardURL).then(x => x.text());
           const shardData = JSON.parse(shardText);
           if (errorReported)
             bucket.error = undefined;
@@ -949,6 +949,64 @@ function coldskyDIDs() {
   function defaultFetch() {
     // can put a polyfill here
     return fetch;
+  }
+
+  /**
+ * @param {Parameters<typeof fetch>[0] & { onretry?: ({}: RetryArgs) => void, corsproxy?: boolean }} req
+ * @param {Parameters<typeof fetch>[1] & { onretry?: ({}: RetryArgs) => void, corsproxy?: boolean }} [init]
+ * @returns {ReturnType<typeof fetch>}
+ */
+  export async function retryFetch(req, init, ...rest) {
+    const started = Date.now();
+    let tryCount = 0;
+    while (true) {
+
+      try {
+        let useCors = req.corsproxy ?? init?.corsproxy;
+        if (typeof useCors !== 'boolean')
+          useCors = tryCount && corsproxyMightBeNeeded && Math.random() > 0.5;
+        const re = useCors ? await fetchWithCors(req, init) : await fetch(req, init);
+
+        if (re.status >= 200 && re.status < 400 ||
+          re.status === 404) { // success or 404 is a sign of request having been processed
+          if (!useCors) corsproxyMightBeNeeded = false;
+          return re;
+        }
+
+        retry(new Error('HTTP' + re.status + ' ' + re.statusText));
+      } catch (e) {
+        await retry(e);
+      }
+    }
+
+    /** @param {Error} error */
+    function retry(error) {
+      tryCount++;
+      let onretry = req.onretry || init?.onretry;
+
+      const now = Date.now();
+      let waitFor = Math.min(
+        30000,
+        Math.max(300, (now - started) / 3)
+      ) * (0.7 + Math.random() * 0.6);
+
+      if (typeof onretry === 'function') {
+        const args = { error, started, tryCount, waitUntil: now + waitFor };
+        onretry(args);
+
+        // allow adjusting the timeout from onretry callback
+        if (args.waitUntil >= now)
+          waitFor = args.waitUntil - now;
+      }
+
+      console.warn(
+        tryCount + ' error' + (tryCount > 1 ? 's' : '') +
+        ', retry in ', waitFor, 'ms ',
+        req,
+        error);
+
+      return new Promise(resolve => setTimeout(resolve, waitFor));
+    }
   }
 
 
