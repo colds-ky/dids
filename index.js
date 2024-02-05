@@ -132,10 +132,6 @@ function coldskyDIDs() {
 
             updatedFiles.push(path);
 
-            singleSet.clear();
-            singleSet.add(twoLetterKey);
-            renderedBuckets(singleSet, true);
-
             incrementChars += incrementJSON.length;
             totalFiles++;
             totalChars += lead.length + incrementJSON.length;
@@ -154,6 +150,12 @@ function coldskyDIDs() {
           for (const set of parallelSets) {
             githubCommitStatus.textContent = 'Updating files: ' + set.join(',') + ' (' + updatedFiles.length + ')...';
             await Promise.all(set.map(commitBucket));
+            singleSet.clear();
+            for (const twoLetterKey of set) {
+              singleSet.add(twoLetterKey);
+            }
+            renderedBuckets(singleSet, true);
+
           }
 
           githubCommitStatus.textContent = 'Committing changes...';
