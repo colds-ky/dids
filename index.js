@@ -3,6 +3,7 @@
 function coldskyDIDs() {
 
   async function load() {
+    const startLoading = Date.now();
     statusBar.textContent = 'Restoring auth...';
     const auth = initAuth();
 
@@ -31,6 +32,7 @@ function coldskyDIDs() {
     showReadme();
 
     await pumpUpdates();
+    statusBar.textContent = 'Updated in ' + ((Date.now() - startLoading) / 1000).toFixed() + ' s.';
 
     async function showReadme() {
       const readmeHost = /** @type {HTMLElement} */(document.querySelector('#readme-host'));
@@ -53,6 +55,7 @@ function coldskyDIDs() {
     }
 
     function tryCommit() {
+      const startCommitting = Date.now();
       pauseUpdatesPromise = (async () => {
         githubCommitStatus.textContent = '';
         statusBar.textContent = 'Authenticating...';
@@ -139,7 +142,7 @@ function coldskyDIDs() {
 
           /** @type {string[][]} */
           const parallelSets = [];
-          const PARALLEL_SET_SIZE = 4;
+          const PARALLEL_SET_SIZE = 16;
           for (const twoLetterKey in renderedBuckets.buckets) {
             const bucket = renderedBuckets.buckets[twoLetterKey];
             if (!bucket.originalJSONText || !bucket.newShortDIDs?.size) {
@@ -188,7 +191,7 @@ function coldskyDIDs() {
           completeLabel.className = 'complete-label';
           completeLabel.textContent = ' \u2714 Done.';
           githubCommitStatus.appendChild(completeLabel);
-          statusBar.textContent = 'Saved changes.';
+          statusBar.textContent = 'Saved changes in ' + ((Date.now() - startCommitting) / 1000).toFixed() + ' s.';
           auth.commitSucceeded();
 
         } catch (error) {
@@ -592,7 +595,7 @@ function coldskyDIDs() {
           'https://bsky.network/xrpc/com.atproto.sync.listRepos?' +
           'limit=' + (forceCycles ? '995' : '998') +
           (fetchForCursor ? '&cursor=' + fetchForCursor : '') +
-          (!forceCycles ? '' : '&t=' + Date.now());
+          '&t=' + Date.now();
 
         const resp = forceCycles ?
           await fetch(fetchURL, { cache: 'reload' }) :
