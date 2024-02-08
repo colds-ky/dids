@@ -140,31 +140,55 @@ function coldskyDIDs() {
             totalChars += lead.length + incrementJSON.length;
           };
 
-          /** @type {string[][]} */
-          const parallelSets = [];
-          const PARALLEL_SET_SIZE = 16;
+          /** @type {Set<string>} */
+          let commitErrors = new Set();
+          /** @type {Set<string>} */
+          let commitsInFlight = new Set();
+
+          const updateCommitProgress = () => {
+            githubCommitStatus.textContent =
+              'Applying ' + [...commitsInFlight].join(',') +
+              (!commitErrors.size ? '' :
+                ' (retry ' + [...commitErrors].join(',') + ')') +
+              '...';
+
+            renderedBuckets(commitsInFlight, true);
+          };
+
+          /** @param {string} twoLetterKey */
+          const commitBucketRetry = async twoLetterKey => {
+            let startCommit = Date.now();
+            let errorReported = false;
+            commitsInFlight.add(twoLetterKey);
+            while (true) {
+              try {
+                const result = await commitBucket(twoLetterKey);
+                commitsInFlight.delete(twoLetterKey);
+                if (errorReported) commitErrors.delete(twoLetterKey);
+                updateCommitProgress();
+                return result;
+              } catch (error) {
+                if (!errorReported) commitErrors.add(twoLetterKey);
+                let waitFor = Math.min(
+                  45000,
+                  Math.max(300, (Date.now() - startCommit) / 3)
+                ) * (0.7 + Math.random() * 0.6);
+                let retryAt = Date.now() + waitFor;
+                waitFor = Math.max(0, retryAt - Date.now());
+
+                updateCommitProgress();
+
+                await new Promise(resolve => setTimeout(resolve, waitFor));
+              }
+            }
+          };
+
+          const commitBucketThrottled = throttledAsyncCache(commitBucketRetry, { maxConcurrency: 8 });
+          const waitForAll = [];
           for (const twoLetterKey in renderedBuckets.buckets) {
-            const bucket = renderedBuckets.buckets[twoLetterKey];
-            if (!bucket.originalJSONText || !bucket.newShortDIDs?.size) {
-              continue;
-            }
-
-            if (parallelSets.length && parallelSets[parallelSets.length - 1].length < PARALLEL_SET_SIZE)
-              parallelSets[parallelSets.length - 1].push(twoLetterKey);
-            else
-              parallelSets.push([twoLetterKey]);
+            waitForAll.push(commitBucketThrottled(twoLetterKey));
           }
-
-          for (const set of parallelSets) {
-            githubCommitStatus.textContent = 'Updating files: ' + set.join(',') + ' (' + updatedFiles.length + ')...';
-            await Promise.all(set.map(commitBucket));
-            singleSet.clear();
-            for (const twoLetterKey of set) {
-              singleSet.add(twoLetterKey);
-            }
-            renderedBuckets(singleSet, true);
-
-          }
+          await Promise.all(waitForAll);
 
           githubCommitStatus.textContent = 'Committing changes...';
           statusBar.textContent = 'GitHub...';
@@ -799,6 +823,158 @@ function coldskyDIDs() {
 
   const _shortenDID_Regex = /^did\:plc\:/;
 
+
+  /**
+ * @template {Function} TFunction
+ * @param {TFunction} call
+ * @param {{ maxConcurrency?: number, interval?: number }} _
+ * @returns {TFunction &
+ * {
+ *   peek: (...args: any[]) => any,
+ *   prepopulate: (value: any, ...args: any[]) => void,
+ *   evict: (...args: any[]) => void
+ * }}
+ */
+  function throttledAsyncCache(call, { maxConcurrency = 3, interval = 100 } = {}) {
+    const cache = multikeyMap();
+
+    const outstandingRequests = new Set();
+    const waitingRequests = new Set();
+
+    var scheduleMoreLaterTimeout;
+
+    throttledCall.peek = peek;
+    throttledCall.prepopulate = prepopulate;
+    throttledCall.evict = evict;
+
+    return /** @type {*} */(throttledCall);
+
+    function peek(...args) {
+      const result = cache.get(...args);
+      if (result && !isPromise(result.value)) return result.value;
+    }
+
+    function prepopulate(value, ...args) {
+      cache.set(...args, { value });
+    }
+
+    function evict(...args) {
+      cache.delete(...args);
+    }
+
+    function throttledCall(...args) {
+      let result = cache.get(...args);
+      if (result) {
+        if (isPromise(result.value)) result.priority++;
+        return result.value;
+      }
+
+      let scheduleNow;
+      const schedulePromise = new Promise(resolve => scheduleNow = resolve);
+
+      const entry = {
+        priority: 0,
+        value: invokeCall(),
+        scheduleNow
+      };
+
+      cache.set(...args, entry);
+      waitingRequests.add(entry);
+
+      scheduleAsAppropriate();
+
+      return entry.value;
+
+      async function invokeCall() {
+        await schedulePromise;
+        waitingRequests.delete(entry);
+        outstandingRequests.add(entry);
+        try {
+          const result = await call(...args);
+          entry.value = result;
+          return result;
+        } finally {
+          outstandingRequests.delete(entry);
+          scheduleAsAppropriate();
+        }
+      }
+    }
+
+    async function scheduleAsAppropriate() {
+      if (outstandingRequests.size >= maxConcurrency) return;
+
+      if (interval) {
+        await new Promise(resolve => setTimeout(resolve, interval));
+        if (outstandingRequests.size >= maxConcurrency) return;
+      }
+
+      const nextRequest = [...waitingRequests].sort((a, b) => b.priority - a.priority)[0];
+      if (!nextRequest) return;
+      nextRequest.scheduleNow();
+
+      if (outstandingRequests.size < maxConcurrency) {
+        clearTimeout(scheduleMoreLaterTimeout);
+        scheduleMoreLaterTimeout = setTimeout(scheduleAsAppropriate, (interval || 100));
+      }
+    }
+  }
+
+  function multikeyMap() {
+    /** @type {Map & { _value?: any }} */
+    const storeMap = new Map();
+
+    const resultMap = {
+      get,
+      set,
+      delete: deleteKeys,
+      has,
+      clear
+    };
+
+    return resultMap;
+
+    function get(...keys) {
+      let entry = storeMap;
+      for (const key of keys) {
+        entry = entry.get(key);
+        if (!entry) return;
+      }
+      return entry._value;
+    }
+
+    function set(...keys) {
+      let entry = storeMap;
+      for (let i = 0; i < keys.length - 1; i++) {
+        const key = keys[i];
+        entry = entry.get(key) || entry.set(key, new Map()).get(key);
+      }
+      entry._value = keys[keys.length - 1];
+      return resultMap;
+    }
+
+    function deleteKeys(...keys) {
+      let entry = storeMap;
+      for (let i = 0; i < keys.length - 1; i++) {
+        const key = keys[i];
+        entry = entry.get(key);
+        if (!entry) return false;
+      }
+      return entry.delete(keys[keys.length - 1]);
+    }
+
+    function has(...keys) {
+      let entry = storeMap;
+      for (const key of keys) {
+        entry = entry.get(key);
+        if (!entry) return false;
+      }
+      return true;
+    }
+
+    function clear() {
+      return storeMap.clear();
+    }
+  }
 
   /**
  * @param {any} x
