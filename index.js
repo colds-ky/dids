@@ -117,7 +117,6 @@ function coldskyDIDs() {
           let incrementChars = 0;
           let totalChars = 0;
           const updatedFiles = [];
-          const singleSet = new Set();
 
           /** @param {string} twoLetterKey */
           const commitBucket = async twoLetterKey => {
@@ -149,7 +148,7 @@ function coldskyDIDs() {
             githubCommitStatus.textContent =
               'Applying ' + [...commitsInFlight].join(',') +
               (!commitErrors.size ? '' :
-                ' (retry ' + [...commitErrors].join(',') + ')') +
+                ' (retry ' + [...commitErrors].join(', ') + ')') +
               '...';
 
             renderedBuckets(commitsInFlight, true);
@@ -169,6 +168,7 @@ function coldskyDIDs() {
                 return result;
               } catch (error) {
                 if (!errorReported) commitErrors.add(twoLetterKey);
+                errorReported = true;
                 let waitFor = Math.min(
                   45000,
                   Math.max(300, (Date.now() - startCommit) / 3)
