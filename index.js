@@ -121,8 +121,12 @@ function coldskyDIDs() {
           /** @param {string} twoLetterKey */
           const commitBucket = async twoLetterKey => {
             const bucket = renderedBuckets.buckets[twoLetterKey];
-            if (!bucket.originalJSONText || !bucket.newShortDIDs?.size) {
+            if (!bucket.originalJSONText) {
               console.log('JSON text is not retrieved: ' + twoLetterKey);
+              return;
+            }
+            if (!bucket.newShortDIDs?.size) {
+              console.log('No new shortDIDs for: ' + twoLetterKey);
               return;
             }
 
@@ -259,10 +263,26 @@ function coldskyDIDs() {
         // and all buckets are populated
         if (githubCommitButton.disabled) {
           githubCommitButton.disabled = false;
-          statusBar.textContent = 'Pumping new accounts...';
         }
 
         githubCommitButton.onclick = tryCommit;
+      }
+
+      if (pumpingState.allAccountsLoaded) {
+        if (pumpingState.allNewDIDsLoaded) {
+          statusBar.textContent = 'All load completed.';
+        } else {
+          statusBar.textContent = 'Pumping new accounts...';
+        }
+      } else {
+        if (pumpingState.allNewDIDsLoaded) {
+          statusBar.textContent = 'Loading few more known accounts...';
+        } else {
+          if (pumpingState.newAccounts)
+            statusBar.textContent = 'Loading known and pumping new accounts...';
+          else
+            statusBar.textContent = 'Loading known accounts...';
+        }
       }
 
     }
@@ -734,8 +754,14 @@ function coldskyDIDs() {
       while (true) {
         try {
           const shardURL = relativeURL(getShardBucketPath(twoLetterKey));
-          const shardText = await fetch(shardURL).then(x => x.text());
-          const shardData = JSON.parse(shardText);
+          let shardText = await fetch(shardURL).then(x => x.text());
+          let shardData = JSON.parse(shardText);
+
+          const duplicateInfo = getDuplicateInfo(shardText, shardData);
+          if (duplicateInfo) {
+            console.log('Duplicates sneaked in: ', duplicateInfo);
+          }
+
           if (errorReported)
             bucket.error = undefined;
           bucket.originalShortDIDs = new Set(shardData);
@@ -780,6 +806,70 @@ function coldskyDIDs() {
         }
       }
     }
+  }
+
+  /**
+   * @param {string} shardText
+   * @param {string[]} shardData
+   */
+  function getDuplicateInfo(shardText, shardData) {
+    const counts = {};
+    const duplicates = [];
+    for (const shortDID of shardData) {
+      counts[shortDID] = (counts[shortDID] || 0) + 1;
+    }
+
+    for (const shortDID of Object.keys(counts)) {
+      const count = counts[shortDID];
+      if (count === 1) continue;
+      const firstPos = shardText.indexOf(shortDID);
+      const lastPos = shardText.lastIndexOf(shortDID);
+      duplicates.push({ shortDID, count, firstPos, lastPos });
+    }
+
+    if (!duplicates.length) return;
+
+    for (const { shortDID } of duplicates) {
+      let firstOccurence = true;
+      shardText = shardText.replace(
+        new RegExp('\b' + shortDID + '\b,? *', 'g'),
+        match => {
+          if (firstOccurence) return match;
+          else return '';
+        });
+    }
+
+    const updatedShardData = JSON.parse(shardText);
+    const originalSet = Array.from(new Set(shardData));
+    const updatedSet = Array.from(new Set(updatedShardData));
+    if (originalSet.length !== updatedSet.length) {
+      console.error('Shard data deduplication size mismatch: ', { originalSet, updatedSet, updatedShardData }, duplicates);
+      return;
+    }
+
+    for (let i = 0; i < originalSet.length; i++) {
+      if (originalSet[i] !== updatedSet[i]) {
+        console.error(
+          'Shard data deduplication mismatch at[' + i + ']: originalSet:' + originalSet[i] + ' != updatedSet:' + updatedSet[i],
+          { originalSet, updatedSet, updatedShardData }, duplicates);
+        return;
+      }
+
+      if (originalSet[i] !== updatedShardData[i]) {
+        console.error(
+          'Shard data deduplication mismatch at[' + i + ']: originalSet:' + originalSet[i] + ' != updatedShardData:' + updatedShardData[i],
+          { originalSet, updatedSet, updatedShardData }, duplicates);
+        return;
+      }
+    }
+
+    const result = {
+      duplicates,
+      shardText,
+      shardData: updatedShardData
+    };
+
+    return result;
   }
 
   /** @param {string[]} dids */
