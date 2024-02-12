@@ -170,11 +170,13 @@ function coldskyDIDs() {
                 if (!errorReported) commitErrors.add(twoLetterKey);
                 errorReported = true;
                 let waitFor = Math.min(
-                  45000,
+                  21000,
                   Math.max(300, (Date.now() - startCommit) / 3)
                 ) * (0.7 + Math.random() * 0.6);
                 let retryAt = Date.now() + waitFor;
                 waitFor = Math.max(0, retryAt - Date.now());
+
+                console.error('commit bucket failure -retry in ' + (waitFor / 1000) + 's', error);
 
                 updateCommitProgress();
 
@@ -1068,6 +1070,11 @@ function coldskyDIDs() {
           headers,
           body: JSON.stringify({ content: encodedBlob, encoding: 'base64' })
         }).then(x => x.json()));
+
+      if (!blob.sha) {
+        console.log('createBlob failed in strange way: ', blob);
+        throw new Error('GitHub createBlob returned no SHA??');
+      }
 
       /** @type {typeof tree[0]} */
       const treeItem = {
