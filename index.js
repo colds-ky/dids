@@ -176,7 +176,7 @@ function coldskyDIDs() {
                 let retryAt = Date.now() + waitFor;
                 waitFor = Math.max(0, retryAt - Date.now());
 
-                console.error('commit bucket failure -retry in ' + (waitFor / 1000) + 's', error);
+                console.error(twoLetterKey + ' commit bucket failure -retry in ' + (waitFor / 1000) + 's', error);
 
                 updateCommitProgress();
 
@@ -531,7 +531,7 @@ function coldskyDIDs() {
             return cursorsJSON;
           } catch (fetchCursorError) {
             let waitFor = Math.min(
-              45000,
+              21000,
               Math.max(300, (Date.now() - startDate) / 3)
             ) * (0.7 + Math.random() * 0.6);
             let retryAt = Date.now() + waitFor;
@@ -670,10 +670,10 @@ function coldskyDIDs() {
         errorCount++;
 
         const waitFor = Math.min(
-          45000,
+          21000,
           Math.max(300, (Date.now() - lastStart) / 3)
         ) * (0.7 + Math.random() * 0.6);
-        console.warn('delay ', waitFor, 'ms ', error);
+        console.warn(cursor + ' delay ', waitFor, 'ms ', error);
 
         yield {
           shortDIDs: undefined,
@@ -758,7 +758,7 @@ function coldskyDIDs() {
           return bucket.originalShortDIDs;
         } catch (error) {
           const waitFor = Math.min(
-            30000,
+            21000,
             Math.max(300, (Date.now() - start) / 3)
           ) * (0.7 + Math.random() * 0.6);
 
@@ -775,7 +775,7 @@ function coldskyDIDs() {
             };
           }
 
-          console.warn('delay ', waitFor, 'ms ', error);
+          console.warn(twoLetterKey + ' delay ', waitFor, 'ms ', error);
           await new Promise(resolve => setTimeout(resolve, waitFor));
         }
       }
